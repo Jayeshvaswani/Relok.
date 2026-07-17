@@ -147,7 +147,55 @@ export default function App() {
   };
 
   const handleSkipOnboarding = () => {
-    // Treat skip as onboarding completed for future routing purposes
+    // Write minimum valid fallback state
+    setUserProfile(prev => ({
+      ...prev,
+      fullName: prev.fullName || 'User',
+      age: prev.age || '25',
+      gender: prev.gender || 'Any',
+      occupation: prev.occupation || 'Professional',
+      education: prev.education || 'Graduate',
+      bio: prev.bio || 'Co-living enthusiast'
+    }));
+
+    setLifestylePref(prev => ({
+      ...prev,
+      sleepSchedule: prev.sleepSchedule || 'Early Bird',
+      cleanliness: prev.cleanliness || 'Moderate',
+      socializing: prev.socializing || 'Occasionally',
+      dietary: prev.dietary || 'Any',
+      smoking: prev.smoking || 'Never',
+      drinking: prev.drinking || 'Never'
+    }));
+
+    setRoomPref(prev => ({
+      ...prev,
+      cities: prev.cities.length > 0 ? prev.cities : ['Bengaluru'],
+      budgetMin: prev.budgetMin || 5000,
+      budgetMax: prev.budgetMax || 25000,
+      sharingType: prev.sharingType || 'Any',
+      moveInDate: prev.moveInDate || new Date().toISOString().split('T')[0],
+      preferredGender: prev.preferredGender || 'Any',
+      preferredLocality: prev.preferredLocality || 'HSR Layout',
+      preferredAgeMin: prev.preferredAgeMin || 18,
+      preferredAgeMax: prev.preferredAgeMax || 60,
+      preferredLanguage: prev.preferredLanguage || 'English'
+    }));
+
+    setLifestyleHabits(prev => ({
+      ...prev,
+      personality: prev.personality || 'Introvert',
+      pets: prev.pets || 'Friendly'
+    }));
+
+    setHouseRules(prev => ({
+      ...prev,
+      guests: prev.guests || 'No overnight stay',
+      loudMusic: prev.loudMusic || 'No loud music',
+      lateEntry: prev.lateEntry || 'Allowed'
+    }));
+
+    localStorage.setItem('skipped_onboarding', 'true');
     setHasCompletedOnboarding(true);
     setCurrentScreen('dashboard');
   };
@@ -173,15 +221,6 @@ export default function App() {
       {/* Mobile containment frame - centered on desktop, full bleed on mobile */}
       <div className="w-full max-w-[430px] min-h-screen bg-white text-[#0F172A] shadow-2xl relative overflow-x-hidden flex flex-col justify-between sm:min-h-[850px] sm:rounded-3xl sm:my-4 sm:border sm:border-slate-800">
         
-        {/* TOP SYSTEM BAR DECORATION */}
-        <div className="h-6 w-full bg-slate-50 flex items-center justify-between px-6 text-slate-400 text-[10px] font-bold select-none border-b border-gray-100 shrink-0">
-          <span>Relok Secure App</span>
-          <div className="flex items-center gap-1">
-            <span>5G</span>
-            <div className="w-4 h-2.5 bg-slate-300 rounded-xs" />
-          </div>
-        </div>
-
         {/* SCREENS ROUTER CONTAINER */}
         <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col justify-between">
           
@@ -403,7 +442,7 @@ export default function App() {
                 <div className="bg-amber-50 rounded-xl border border-amber-100 p-3 flex gap-2 items-start mt-2">
                   <span className="text-sm">💡</span>
                   <p className="text-[11px] text-amber-800 leading-relaxed">
-                    <strong>Tester Tip:</strong> Enter any 6 digits (e.g. 123456) to proceed. Change the onboarding flag in Profile &gt; Controls to simulate login vs registration.
+                    <strong>Tester Tip:</strong> Enter any 6 digits (e.g. 123456) to proceed.
                   </p>
                 </div>
               </div>

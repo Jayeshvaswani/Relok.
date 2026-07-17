@@ -25,7 +25,7 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
 
   useEffect(() => {
     if (!value || value.trim() === "") {
-      setFiltered([]);
+      setFiltered(suggestions.slice(0, 15));
       return;
     }
 
@@ -45,7 +45,7 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
       }
     });
 
-    const combined = [...startsWithMatches, ...includesMatches].slice(0, 8);
+    const combined = [...startsWithMatches, ...includesMatches].slice(0, 15);
     
     // If the value exactly matches one of the items, we can hide the dropdown
     if (combined.length === 1 && combined[0].toLowerCase() === query) {
@@ -97,6 +97,11 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
               <button
                 key={index}
                 type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(item);
+                  setIsOpen(false);
+                }}
                 onClick={() => {
                   onChange(item);
                   setIsOpen(false);

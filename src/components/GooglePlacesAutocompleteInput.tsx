@@ -140,9 +140,26 @@ export const GooglePlacesAutocompleteInput: React.FC<GooglePlacesAutocompleteInp
     (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY || 
     '';
 
-  // Initialize Autocomplete Service
+  // Dynamically load Google Maps script if API key is present
   useEffect(() => {
     if (typeof window !== 'undefined' && GOOGLE_MAPS_API_KEY) {
+      if (!window.google || !window.google.maps) {
+        const existingScript = document.getElementById('google-maps-script');
+        if (!existingScript) {
+          const script = document.createElement('script');
+          script.id = 'google-maps-script';
+          script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
+          script.async = true;
+          script.defer = true;
+          document.head.appendChild(script);
+        }
+      }
+    }
+  }, [GOOGLE_MAPS_API_KEY]);
+
+  // Initialize Autocomplete Service
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
       const checkGoogleAndInit = () => {
         if (window.google && window.google.maps && window.google.maps.places) {
           if (!autocompleteServiceRef.current) {
@@ -287,6 +304,10 @@ export const GooglePlacesAutocompleteInput: React.FC<GooglePlacesAutocompleteInp
               <button
                 key={index}
                 type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleSelect(pred);
+                }}
                 onClick={() => handleSelect(pred)}
                 className="w-full text-left px-4 py-3 text-sm text-[#0F172A] hover:bg-slate-50 border-b border-gray-50 last:border-0 font-medium transition-colors flex items-center gap-2"
               >

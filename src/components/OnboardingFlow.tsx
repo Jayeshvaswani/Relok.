@@ -17,7 +17,7 @@ import {
   BackButton 
 } from './Common';
 import { INDIAN_CITIES } from '../data';
-import { OCCUPATIONS, COLLEGES } from '../data/autocompleteData';
+import { OCCUPATIONS, COLLEGES, getPrioritizedColleges } from '../data/autocompleteData';
 import { AutocompleteInput } from './AutocompleteInput';
 import { GooglePlacesAutocompleteInput } from './GooglePlacesAutocompleteInput';
 
@@ -102,8 +102,15 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       {currentOnboardingStep === 1 && (
         <form onSubmit={handleStep1Submit} className="flex flex-col justify-between flex-1 gap-6">
           <div className="flex flex-col gap-6">
-            <div className="flex items-center">
+            <div className="flex justify-between items-center h-11">
               <BackButton onClick={onBackToLogin} />
+              <button
+                type="button"
+                onClick={onSkip}
+                className="text-sm font-semibold text-[#128A4E] hover:text-[#0F7A44] transition-colors pr-2 cursor-pointer"
+              >
+                Skip
+              </button>
             </div>
 
             <div className="flex flex-col gap-1">
@@ -271,7 +278,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
                 placeholder="e.g. BITS Pilani"
                 value={userProfile.education}
                 onChange={(val) => setUserProfile({ ...userProfile, education: val })}
-                suggestions={COLLEGES}
+                suggestions={getPrioritizedColleges(roomPref.cities[0] || 'Bengaluru')}
                 icon={<GraduationCap size={20} />}
               />
 
@@ -303,8 +310,15 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       {currentOnboardingStep === 3 && (
         <form onSubmit={handleStep3Submit} className="flex flex-col justify-between flex-1 gap-6">
           <div className="flex flex-col gap-6">
-            <div className="flex items-center">
+            <div className="flex justify-between items-center h-11">
               <BackButton onClick={() => setCurrentOnboardingStep(2)} />
+              <button
+                type="button"
+                onClick={onSkip}
+                className="text-sm font-semibold text-[#128A4E] hover:text-[#0F7A44] transition-colors pr-2 cursor-pointer"
+              >
+                Skip
+              </button>
             </div>
 
             <div className="flex flex-col gap-1">
@@ -491,12 +505,40 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
                 </div>
               </div>
 
-              <FormInput
-                label="Preferred Language"
-                placeholder="e.g. Hindi, English, Kannada"
-                value={roomPref.preferredLanguage || ''}
-                onChange={(val) => setRoomPref({ ...roomPref, preferredLanguage: val })}
-              />
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Preferred Languages</label>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {['English', 'Hindi', 'Gujarati', 'Marathi', 'Kannada', 'Telugu', 'Tamil', 'Bengali', 'Punjabi', 'Malayalam'].map((lang) => {
+                    const selectedLangs = roomPref.preferredLanguage ? roomPref.preferredLanguage.split(',').map(s => s.trim()).filter(Boolean) : [];
+                    const isSelected = selectedLangs.includes(lang);
+                    return (
+                      <button
+                        key={lang}
+                        type="button"
+                        onClick={() => {
+                          let nextLangs: string[];
+                          if (isSelected) {
+                            nextLangs = selectedLangs.filter(l => l !== lang);
+                          } else {
+                            nextLangs = [...selectedLangs, lang];
+                          }
+                          setRoomPref({
+                            ...roomPref,
+                            preferredLanguage: nextLangs.join(', ')
+                          });
+                        }}
+                        className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all duration-200 cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#128A4E] text-white border-[#128A4E] shadow-sm'
+                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        {lang}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -518,8 +560,15 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       {currentOnboardingStep === 4 && (
         <form onSubmit={handleStep4Submit} className="flex flex-col justify-between flex-1 gap-6">
           <div className="flex flex-col gap-6">
-            <div className="flex items-center">
+            <div className="flex justify-between items-center h-11">
               <BackButton onClick={() => setCurrentOnboardingStep(3)} />
+              <button
+                type="button"
+                onClick={onSkip}
+                className="text-sm font-semibold text-[#128A4E] hover:text-[#0F7A44] transition-colors pr-2 cursor-pointer"
+              >
+                Skip
+              </button>
             </div>
 
             <div className="flex flex-col gap-1">
@@ -565,8 +614,15 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       {currentOnboardingStep === 5 && (
         <form onSubmit={handleStep5Submit} className="flex flex-col justify-between flex-1 gap-6">
           <div className="flex flex-col gap-6">
-            <div className="flex items-center">
+            <div className="flex justify-between items-center h-11">
               <BackButton onClick={() => setCurrentOnboardingStep(4)} />
+              <button
+                type="button"
+                onClick={onSkip}
+                className="text-sm font-semibold text-[#128A4E] hover:text-[#0F7A44] transition-colors pr-2 cursor-pointer"
+              >
+                Skip
+              </button>
             </div>
 
             <div className="flex flex-col gap-1">
@@ -619,8 +675,15 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       {currentOnboardingStep === 6 && (
         <div className="flex flex-col justify-between flex-1 gap-6">
           <div className="flex flex-col gap-6">
-            <div className="flex items-center">
+            <div className="flex justify-between items-center h-11">
               <BackButton onClick={() => setCurrentOnboardingStep(5)} />
+              <button
+                type="button"
+                onClick={onSkip}
+                className="text-sm font-semibold text-[#128A4E] hover:text-[#0F7A44] transition-colors pr-2 cursor-pointer"
+              >
+                Skip
+              </button>
             </div>
 
             <div className="flex flex-col gap-1">

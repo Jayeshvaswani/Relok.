@@ -133,10 +133,98 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallPromo, setShowInstallPromo] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [offlineQueue, setOfflineQueue] = useState<any[]>([]);
+
+  // Proximity calculations and data mappings
+  const getItemCoordinates = (location: string, city: string) => {
+    const loc = (location || '').toLowerCase();
+    const c = (city || '').toLowerCase();
+    
+    if (c.includes('bengaluru') || c.includes('bangalore')) {
+      if (loc.includes('hsr')) return { lat: 12.9116, lng: 77.6389 };
+      if (loc.includes('indiranagar')) return { lat: 12.9784, lng: 77.6408 };
+      if (loc.includes('koramangala')) return { lat: 12.9279, lng: 77.6271 };
+      return { lat: 12.9716, lng: 77.5946 };
+    }
+    if (c.includes('mumbai')) {
+      if (loc.includes('bandra')) return { lat: 19.0600, lng: 72.8229 };
+      if (loc.includes('andheri')) return { lat: 19.1136, lng: 72.8697 };
+      return { lat: 19.0760, lng: 72.8777 };
+    }
+    if (c.includes('hyderabad')) {
+      if (loc.includes('gachibowli')) return { lat: 17.4416, lng: 78.3489 };
+      if (loc.includes('jubilee')) return { lat: 17.4325, lng: 78.4071 };
+      return { lat: 17.3850, lng: 78.4867 };
+    }
+    if (c.includes('pune')) {
+      if (loc.includes('koregaon')) return { lat: 18.5362, lng: 73.8940 };
+      if (loc.includes('kalyani')) return { lat: 18.5463, lng: 73.9033 };
+      return { lat: 18.5204, lng: 73.8567 };
+    }
+    if (c.includes('delhi')) {
+      return { lat: 28.6139, lng: 77.2090 };
+    }
+    return { lat: 12.9116, lng: 77.6389 }; // Default to HSR
+  };
+
+  const calculateDistanceInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const d = R * c; // Distance in km
+    return Number(d.toFixed(1));
+  };
+
+  const getItemDistance = (location: string, city: string) => {
+    if (!userLocation) return null;
+    const itemCoords = getItemCoordinates(location, city);
+    return calculateDistanceInKm(userLocation.lat, userLocation.lng, itemCoords.lat, itemCoords.lng);
+  };
+
+  const handleToggleNearMe = () => {
+    if (userLocation) {
+      setUserLocation(null);
+      showToast("Near Me mode deactivated");
+    } else {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setUserLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            });
+            showToast("📍 Near Me activated using GPS location!");
+          },
+          (error) => {
+            console.log("Geolocation error:", error);
+            let fallbackCoords = { lat: 12.9116, lng: 77.6389 }; // HSR
+            if (selectedCity === 'Mumbai') fallbackCoords = { lat: 19.0600, lng: 72.8229 };
+            else if (selectedCity === 'Hyderabad') fallbackCoords = { lat: 17.4416, lng: 78.3489 };
+            else if (selectedCity === 'Pune') fallbackCoords = { lat: 18.5362, lng: 73.8940 };
+            
+            setUserLocation(fallbackCoords);
+            showToast(`📍 Near Me activated for ${selectedCity}!`);
+          }
+        );
+      } else {
+        let fallbackCoords = { lat: 12.9116, lng: 77.6389 };
+        if (selectedCity === 'Mumbai') fallbackCoords = { lat: 19.0600, lng: 72.8229 };
+        else if (selectedCity === 'Hyderabad') fallbackCoords = { lat: 17.4416, lng: 78.3489 };
+        else if (selectedCity === 'Pune') fallbackCoords = { lat: 18.5362, lng: 73.8940 };
+        setUserLocation(fallbackCoords);
+        showToast(`📍 Near Me activated for ${selectedCity}!`);
+      }
+    }
+  };
 
   useEffect(() => {
     if (!isOffline && offlineQueue.length > 0) {
@@ -178,6 +266,13 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
     const userAgent = window.navigator.userAgent.toLowerCase();
     const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
     setIsIOS(isIosDevice);
+
+    if (localStorage.getItem('skipped_onboarding') === 'true') {
+      localStorage.removeItem('skipped_onboarding');
+      setTimeout(() => {
+        showToast("Welcome to Relok! Fill out your profile details anytime from your Profile tab.");
+      }, 800);
+    }
 
     const handleInstallPrompt = (e: any) => {
       e.preventDefault();
@@ -264,6 +359,20 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
       room.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
       room.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCity && matchesSearch;
+  });
+
+  const sortedRoommates = [...filteredRoommates].sort((a, b) => {
+    if (!userLocation) return 0;
+    const distA = getItemDistance(a.bio, a.city) ?? 9999;
+    const distB = getItemDistance(b.bio, b.city) ?? 9999;
+    return distA - distB;
+  });
+
+  const sortedRooms = [...filteredRooms].sort((a, b) => {
+    if (!userLocation) return 0;
+    const distA = getItemDistance(a.location, a.city) ?? 9999;
+    const distB = getItemDistance(b.location, b.city) ?? 9999;
+    return distA - distB;
   });
 
   const myRooms = roomListings.filter(room => room.postedBy.name === userProfile.fullName);
@@ -552,29 +661,43 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
             </div>
 
             {/* 2. Clean Search Bar */}
-            <div className="relative w-full">
-              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search flatmates or rooms"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-11 bg-white border border-gray-200 rounded-xl text-xs pl-11 pr-10 focus:outline-none focus:border-[#128A4E] text-[#0F172A] placeholder-[#9CA3AF] shadow-sm font-semibold"
-              />
-              {searchQuery ? (
-                <button 
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-                >
-                  <X size={14} />
-                </button>
-              ) : (
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[#128A4E] cursor-pointer" onClick={() => showToast("Apply customized filter parameters in search.")}>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                  </svg>
-                </div>
-              )}
+            <div className="flex gap-2 w-full">
+              <div className="relative flex-1">
+                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search flatmates or rooms"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full h-11 bg-white border border-gray-200 rounded-xl text-xs pl-11 pr-10 focus:outline-none focus:border-[#128A4E] text-[#0F172A] placeholder-[#9CA3AF] shadow-sm font-semibold"
+                />
+                {searchQuery ? (
+                  <button 
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                  >
+                    <X size={14} />
+                  </button>
+                ) : (
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[#128A4E] cursor-pointer" onClick={() => showToast("Apply customized filter parameters in search.")}>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleNearMe}
+                className={`h-11 px-3 rounded-xl border text-[10px] font-black tracking-wider uppercase transition-all flex items-center gap-1 shrink-0 shadow-sm cursor-pointer ${
+                  userLocation 
+                    ? 'border-[#128A4E] bg-[#E8F5EE] text-[#128A4E] ring-1 ring-[#128A4E]' 
+                    : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                }`}
+              >
+                <span>📍</span>
+                <span>{userLocation ? 'Near Me' : 'Near Me'}</span>
+              </button>
             </div>
 
             {/* 3. Category Navigation Tabs */}
@@ -618,8 +741,9 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                   </div>
 
                   <div className="flex gap-4 overflow-x-auto pb-3 pt-1 snap-x scroll-smooth no-scrollbar">
-                    {filteredRoommates.map((rm) => {
+                    {sortedRoommates.map((rm) => {
                       const matchPct = getDynamicCompatibility(rm);
+                      const distance = getItemDistance(rm.bio, rm.city);
                       return (
                         <div 
                           key={rm.id}
@@ -641,6 +765,11 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                             <div className="flex flex-col">
                               <h4 className="text-xs font-extrabold text-[#0F172A] leading-tight truncate w-32">{rm.name}</h4>
                               <p className="text-[10px] text-gray-400 font-semibold">{rm.age} yrs • {rm.occupation.split(' at ')[0]}</p>
+                              {userLocation && distance !== null && (
+                                <p className="text-[9px] font-bold text-[#128A4E] mt-0.5">
+                                  📍 {distance} km away
+                                </p>
+                              )}
                             </div>
                           </div>
 
@@ -680,36 +809,44 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                   </div>
 
                   <div className="flex gap-4 overflow-x-auto pb-3 pt-1 snap-x scroll-smooth no-scrollbar">
-                    {filteredRooms.map((room) => (
-                      <div 
-                        key={room.id}
-                        onClick={() => setSelectedRoom(room)}
-                        className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:border-[#128A4E]/30 shrink-0 w-64 snap-start cursor-pointer transition-all duration-200"
-                      >
-                        <div className="relative h-28 bg-gray-100">
-                          <img 
-                            src={room.images[0]} 
-                            alt={room.title} 
-                            className="w-full h-full object-cover"
-                            referrerPolicy="no-referrer"
-                          />
-                          <div className="absolute top-2 left-2 bg-black/60 text-white font-extrabold text-[8px] px-2 py-0.5 rounded uppercase tracking-wider">
-                            {room.sharingType}
+                    {sortedRooms.map((room) => {
+                      const distance = getItemDistance(room.location, room.city);
+                      return (
+                        <div 
+                          key={room.id}
+                          onClick={() => setSelectedRoom(room)}
+                          className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:border-[#128A4E]/30 shrink-0 w-64 snap-start cursor-pointer transition-all duration-200"
+                        >
+                          <div className="relative h-28 bg-gray-100">
+                            <img 
+                              src={room.images[0]} 
+                              alt={room.title} 
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute top-2 left-2 bg-black/60 text-white font-extrabold text-[8px] px-2 py-0.5 rounded uppercase tracking-wider">
+                              {room.sharingType}
+                            </div>
+                            <div className="absolute bottom-2 right-2 bg-[#128A4E] text-white font-extrabold text-[10px] px-2 py-0.5 rounded">
+                              ₹{room.rent.toLocaleString('en-IN')}/mo
+                            </div>
                           </div>
-                          <div className="absolute bottom-2 right-2 bg-[#128A4E] text-white font-extrabold text-[10px] px-2 py-0.5 rounded">
-                            ₹{room.rent.toLocaleString('en-IN')}/mo
-                          </div>
-                        </div>
 
-                        <div className="p-3 flex flex-col gap-1">
-                          <h4 className="text-xs font-extrabold text-[#0F172A] truncate leading-tight">{room.title}</h4>
-                          <p className="text-[10px] text-gray-400 font-semibold truncate flex items-center gap-0.5">
-                            <MapPin size={10} className="text-[#128A4E] shrink-0" />
-                            <span>{room.location}</span>
-                          </p>
+                          <div className="p-3 flex flex-col gap-1">
+                            <h4 className="text-xs font-extrabold text-[#0F172A] truncate leading-tight">{room.title}</h4>
+                            <p className="text-[10px] text-gray-400 font-semibold truncate flex items-center gap-0.5">
+                              <MapPin size={10} className="text-[#128A4E] shrink-0" />
+                              <span>{room.location}</span>
+                            </p>
+                            {userLocation && distance !== null && (
+                              <p className="text-[9px] font-bold text-[#128A4E] flex items-center gap-0.5 mt-0.5">
+                                📍 {distance} km away
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -725,12 +862,13 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                   <div className="flex flex-col gap-4">
                     <div className="flex justify-between items-center">
                       <h3 className="text-xs font-extrabold uppercase tracking-wider text-gray-400">Compatible Roommates</h3>
-                      <span className="text-[10px] bg-[#E8F5EE] text-[#128A4E] font-bold px-2 py-0.5 rounded-full">{filteredRoommates.length} found</span>
+                      <span className="text-[10px] bg-[#E8F5EE] text-[#128A4E] font-bold px-2 py-0.5 rounded-full">{sortedRoommates.length} found</span>
                     </div>
 
                     <div className="grid grid-cols-1 gap-3">
-                      {filteredRoommates.map((rm) => {
+                      {sortedRoommates.map((rm) => {
                         const matchPct = getDynamicCompatibility(rm);
+                        const distance = getItemDistance(rm.bio, rm.city);
                         return (
                           <div 
                             key={rm.id}
@@ -752,6 +890,11 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                               <div className="flex flex-col">
                                 <h4 className="text-xs font-extrabold text-[#0F172A]">{rm.name}</h4>
                                 <p className="text-[10px] text-gray-400 font-semibold">{rm.age} yrs • {rm.occupation}</p>
+                                {userLocation && distance !== null && (
+                                  <p className="text-[9px] font-bold text-[#128A4E] mt-0.5 flex items-center gap-0.5">
+                                    📍 {distance} km away
+                                  </p>
+                                )}
                                 <span className="text-[10px] font-black text-[#128A4E] mt-1 bg-[#E8F5EE] self-start px-2 py-0.5 rounded">
                                   Budget: {rm.budget}/mo
                                 </span>
@@ -782,44 +925,52 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                         {homeFilter === 'my' ? 'My Posted Rooms' : 'Available Rooms'}
                       </h3>
                       <span className="text-[10px] bg-[#E8F5EE] text-[#128A4E] font-bold px-2 py-0.5 rounded-full">
-                        {(homeFilter === 'my' ? myRooms : filteredRooms).length} listed
+                        {(homeFilter === 'my' ? myRooms : sortedRooms).length} listed
                       </span>
                     </div>
 
                     <div className="grid grid-cols-1 gap-4">
-                      {(homeFilter === 'my' ? myRooms : filteredRooms).map((room) => (
-                        <div 
-                          key={room.id}
-                          onClick={() => setSelectedRoom(room)}
-                          className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:border-[#128A4E]/35 cursor-pointer transition-all flex flex-col"
-                        >
-                          <div className="relative h-40 bg-gray-100">
-                            <img 
-                              src={room.images[0]} 
-                              alt={room.title} 
-                              className="w-full h-full object-cover"
-                              referrerPolicy="no-referrer"
-                            />
-                            <div className="absolute top-2 left-2 bg-black/60 text-white font-extrabold text-[8px] px-2 py-0.5 rounded uppercase tracking-wider">
-                              {room.sharingType}
+                      {(homeFilter === 'my' ? myRooms : sortedRooms).map((room) => {
+                        const distance = getItemDistance(room.location, room.city);
+                        return (
+                          <div 
+                            key={room.id}
+                            onClick={() => setSelectedRoom(room)}
+                            className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:border-[#128A4E]/35 cursor-pointer transition-all flex flex-col"
+                          >
+                            <div className="relative h-40 bg-gray-100">
+                              <img 
+                                src={room.images[0]} 
+                                alt={room.title} 
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                              <div className="absolute top-2 left-2 bg-black/60 text-white font-extrabold text-[8px] px-2 py-0.5 rounded uppercase tracking-wider">
+                                {room.sharingType}
+                              </div>
+                              <div className="absolute bottom-2 right-2 bg-[#128A4E] text-white font-extrabold text-xs px-2.5 py-1 rounded">
+                                ₹{room.rent.toLocaleString('en-IN')}/mo
+                              </div>
                             </div>
-                            <div className="absolute bottom-2 right-2 bg-[#128A4E] text-white font-extrabold text-xs px-2.5 py-1 rounded">
-                              ₹{room.rent.toLocaleString('en-IN')}/mo
-                            </div>
-                          </div>
 
-                          <div className="p-4 flex flex-col gap-2">
-                            <h4 className="text-xs font-extrabold text-[#0F172A]">{room.title}</h4>
-                            <p className="text-[10px] text-gray-400 font-semibold flex items-center gap-0.5">
-                              <MapPin size={11} className="text-[#128A4E] shrink-0" />
-                              <span>{room.location}</span>
-                            </p>
-                            <p className="text-[10px] text-gray-500 line-clamp-2 leading-relaxed italic">
-                              "{room.description}"
-                            </p>
+                            <div className="p-4 flex flex-col gap-2">
+                              <h4 className="text-xs font-extrabold text-[#0F172A]">{room.title}</h4>
+                              <p className="text-[10px] text-gray-400 font-semibold flex items-center gap-0.5">
+                                <MapPin size={11} className="text-[#128A4E] shrink-0" />
+                                <span>{room.location}</span>
+                              </p>
+                              {userLocation && distance !== null && (
+                                <p className="text-[9px] font-bold text-[#128A4E] flex items-center gap-0.5">
+                                  📍 {distance} km away
+                                </p>
+                              )}
+                              <p className="text-[10px] text-gray-500 line-clamp-2 leading-relaxed italic">
+                                "{room.description}"
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
