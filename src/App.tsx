@@ -331,8 +331,15 @@ export default function App() {
                 <div className="flex flex-col gap-2 mt-4">
                   <label className="text-sm font-semibold text-[#0F172A]">Mobile Number</label>
                   <div className="flex gap-3 h-14 w-full">
-                    <div className="flex items-center gap-1.5 px-4 h-full bg-gray-50 border border-[#E5E7EB] rounded-xl text-base font-bold text-[#0F172A] select-none">
-                      <span>🇮🇳</span>
+                    <div className="flex items-center gap-2.5 px-3.5 h-full bg-gray-50 border border-[#E5E7EB] rounded-xl text-base font-bold text-[#0F172A] select-none">
+                      <svg width="20" height="14" viewBox="0 0 3 2" className="rounded-xs border border-slate-200/50 shadow-xs shrink-0">
+                        <rect width="3" height="2" fill="#FFFFFF" />
+                        <rect width="3" height="0.67" fill="#FF9933" />
+                        <rect y="1.33" width="3" height="0.67" fill="#138808" />
+                        <circle cx="1.5" cy="1" r="0.2" fill="#000080" />
+                        <circle cx="1.5" cy="1" r="0.1" fill="#FFFFFF" />
+                        <circle cx="1.5" cy="1" r="0.05" fill="#000080" />
+                      </svg>
                       <span>+91</span>
                       <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
