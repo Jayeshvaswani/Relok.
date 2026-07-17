@@ -17,6 +17,9 @@ import {
   BackButton 
 } from './Common';
 import { INDIAN_CITIES } from '../data';
+import { OCCUPATIONS, COLLEGES } from '../data/autocompleteData';
+import { AutocompleteInput } from './AutocompleteInput';
+import { GooglePlacesAutocompleteInput } from './GooglePlacesAutocompleteInput';
 
 interface OnboardingFlowProps {
   currentOnboardingStep: number;
@@ -254,19 +257,21 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
                 </div>
               </div>
 
-              <FormInput
+              <AutocompleteInput
                 label="Occupation"
                 placeholder="e.g. Software Engineer"
                 value={userProfile.occupation}
                 onChange={(val) => setUserProfile({ ...userProfile, occupation: val })}
+                suggestions={OCCUPATIONS}
                 icon={<Briefcase size={20} />}
               />
 
-              <FormInput
+              <AutocompleteInput
                 label="Education / College"
                 placeholder="e.g. BITS Pilani"
                 value={userProfile.education}
                 onChange={(val) => setUserProfile({ ...userProfile, education: val })}
+                suggestions={COLLEGES}
                 icon={<GraduationCap size={20} />}
               />
 
@@ -397,11 +402,12 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
                 </div>
               </div>
 
-              <FormInput
+              <GooglePlacesAutocompleteInput
                 label="Preferred Locality / Area"
                 placeholder="e.g. Indiranagar, Koramangala"
                 value={roomPref.preferredLocality || ''}
                 onChange={(val) => setRoomPref({ ...roomPref, preferredLocality: val })}
+                cityContext={roomPref.cities[0] || 'Bengaluru'}
               />
 
               <div className="flex flex-col gap-2">
@@ -412,8 +418,25 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
                   </span>
                 </div>
                 <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-xl border border-gray-100">
-                  <div className="flex-1 flex flex-col gap-1">
-                    <span className="text-[10px] font-bold text-gray-400">Min Age</span>
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-gray-400">Min Age</span>
+                      <input
+                        type="number"
+                        min="18"
+                        max="60"
+                        value={roomPref.preferredAgeMin || 18}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          const maxVal = roomPref.preferredAgeMax || 60;
+                          setRoomPref({ 
+                            ...roomPref, 
+                            preferredAgeMin: Math.max(18, Math.min(val, maxVal - 1)) 
+                          });
+                        }}
+                        className="w-14 text-center px-1 py-0.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-700 focus:outline-none focus:border-[#128A4E]"
+                      />
+                    </div>
                     <input
                       type="range"
                       min="18"
@@ -424,14 +447,31 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
                         const maxVal = roomPref.preferredAgeMax || 60;
                         setRoomPref({ 
                           ...roomPref, 
-                          preferredAgeMin: Math.min(minVal, maxVal) 
+                          preferredAgeMin: Math.min(minVal, maxVal - 1) 
                         });
                       }}
                       className="w-full accent-[#128A4E] h-1.5 bg-gray-200 rounded-lg cursor-pointer"
                     />
                   </div>
-                  <div className="flex-1 flex flex-col gap-1">
-                    <span className="text-[10px] font-bold text-gray-400">Max Age</span>
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-gray-400">Max Age</span>
+                      <input
+                        type="number"
+                        min="18"
+                        max="60"
+                        value={roomPref.preferredAgeMax || 60}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          const minVal = roomPref.preferredAgeMin || 18;
+                          setRoomPref({ 
+                            ...roomPref, 
+                            preferredAgeMax: Math.min(60, Math.max(val, minVal + 1)) 
+                          });
+                        }}
+                        className="w-14 text-center px-1 py-0.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-700 focus:outline-none focus:border-[#128A4E]"
+                      />
+                    </div>
                     <input
                       type="range"
                       min="18"
@@ -442,7 +482,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
                         const minVal = roomPref.preferredAgeMin || 18;
                         setRoomPref({ 
                           ...roomPref, 
-                          preferredAgeMax: Math.max(maxVal, minVal) 
+                          preferredAgeMax: Math.max(maxVal, minVal + 1) 
                         });
                       }}
                       className="w-full accent-[#128A4E] h-1.5 bg-gray-200 rounded-lg cursor-pointer"

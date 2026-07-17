@@ -80,6 +80,7 @@ export interface Message {
   sender: 'me' | 'them';
   text: string;
   timestamp: string;
+  status?: 'sent' | 'pending';
 }
 
 export interface ChatThread {

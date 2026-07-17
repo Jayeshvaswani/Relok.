@@ -33,6 +33,9 @@ import {
 } from '../types';
 import { INDIAN_CITIES } from '../data';
 import { PrimaryButton, SecondaryButton, FormInput, FormTextarea, PillSelector } from './Common';
+import { OCCUPATIONS, COLLEGES } from '../data/autocompleteData';
+import { AutocompleteInput } from './AutocompleteInput';
+import { GooglePlacesAutocompleteInput } from './GooglePlacesAutocompleteInput';
 
 interface MainAppLayoutProps {
   userProfile: UserProfile;
@@ -133,6 +136,38 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallPromo, setShowInstallPromo] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [offlineQueue, setOfflineQueue] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!isOffline && offlineQueue.length > 0) {
+      // Sync pending messages
+      const updatedChats = chats.map(chat => {
+        const hasPending = chat.messages.some(m => m.status === 'pending');
+        if (hasPending) {
+          return {
+            ...chat,
+            messages: chat.messages.map(m => m.status === 'pending' ? { ...m, status: 'sent' as 'sent' } : m)
+          };
+        }
+        return chat;
+      });
+      setChats(updatedChats);
+      
+      // Update active chat thread if it has pending messages
+      if (activeChatThread) {
+        const hasPending = activeChatThread.messages.some(m => m.status === 'pending');
+        if (hasPending) {
+          setActiveChatThread({
+            ...activeChatThread,
+            messages: activeChatThread.messages.map(m => m.status === 'pending' ? { ...m, status: 'sent' as 'sent' } : m)
+          });
+        }
+      }
+
+      showToast(`Connected! Synced ${offlineQueue.length} offline actions successfully.`);
+      setOfflineQueue([]);
+    }
+  }, [isOffline, offlineQueue]);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -258,7 +293,13 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
 
     setRoomListings([newRoom, ...roomListings]);
     setCreateStep('published');
-    showToast('Listing published successfully!');
+
+    if (isOffline) {
+      setOfflineQueue(prev => [...prev, { type: 'listing', listingId: newRoom.id }]);
+      showToast('Offline: Listing created locally & queued for sync! ⏳');
+    } else {
+      showToast('Listing published successfully! 🎉');
+    }
   };
 
   const handleResetForm = () => {
@@ -323,7 +364,8 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
       id: `my-${Date.now()}`,
       sender: 'me',
       text: chatInputText,
-      timestamp: 'Just now'
+      timestamp: 'Just now',
+      status: isOffline ? 'pending' : 'sent'
     };
 
     const updatedMessages = [...activeChatThread.messages, myMessage];
@@ -339,7 +381,13 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
     setActiveChatThread(updatedThread);
     setChatInputText('');
 
-    // Trigger flatmate reply simulation after 1.5 seconds
+    if (isOffline) {
+      setOfflineQueue(prev => [...prev, { type: 'message', messageId: myMessage.id, threadId: activeChatThread.id }]);
+      showToast('Offline: Message queued for sync! ⏳');
+      return;
+    }
+
+    // Trigger flatmate reply simulation after 1.5 seconds if online
     setIsTyping(true);
     setTimeout(() => {
       setIsTyping(false);
@@ -508,7 +556,7 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
               <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search flatmates or rooms..."
+                placeholder="Search flatmates or rooms"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full h-11 bg-white border border-gray-200 rounded-xl text-xs pl-11 pr-10 focus:outline-none focus:border-[#128A4E] text-[#0F172A] placeholder-[#9CA3AF] shadow-sm font-semibold"
@@ -1282,8 +1330,21 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                     </span>
                   </div>
                   <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-xl border border-gray-100">
-                    <div className="flex-1 flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-gray-400">Min Age</span>
+                    <div className="flex-1 flex flex-col gap-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold text-gray-400">Min Age</span>
+                        <input
+                          type="number"
+                          min="18"
+                          max="60"
+                          value={preferredAgeMin}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setPreferredAgeMin(Math.max(18, Math.min(val, preferredAgeMax - 1)));
+                          }}
+                          className="w-14 text-center px-1 py-0.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-700 focus:outline-none focus:border-[#128A4E]"
+                        />
+                      </div>
                       <input
                         type="range"
                         min="18"
@@ -1291,13 +1352,26 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                         value={preferredAgeMin}
                         onChange={(e) => {
                           const minVal = Number(e.target.value);
-                          setPreferredAgeMin(Math.min(minVal, preferredAgeMax));
+                          setPreferredAgeMin(Math.min(minVal, preferredAgeMax - 1));
                         }}
                         className="w-full accent-[#128A4E] h-1.5 bg-gray-200 rounded-lg cursor-pointer"
                       />
                     </div>
-                    <div className="flex-1 flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-gray-400">Max Age</span>
+                    <div className="flex-1 flex flex-col gap-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold text-gray-400">Max Age</span>
+                        <input
+                          type="number"
+                          min="18"
+                          max="60"
+                          value={preferredAgeMax}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setPreferredAgeMax(Math.min(60, Math.max(val, preferredAgeMin + 1)));
+                          }}
+                          className="w-14 text-center px-1 py-0.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-700 focus:outline-none focus:border-[#128A4E]"
+                        />
+                      </div>
                       <input
                         type="range"
                         min="18"
@@ -1305,7 +1379,7 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                         value={preferredAgeMax}
                         onChange={(e) => {
                           const maxVal = Number(e.target.value);
-                          setPreferredAgeMax(Math.max(maxVal, preferredAgeMin));
+                          setPreferredAgeMax(Math.max(maxVal, preferredAgeMin + 1));
                         }}
                         className="w-full accent-[#128A4E] h-1.5 bg-gray-200 rounded-lg cursor-pointer"
                       />
@@ -1334,19 +1408,26 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                   <p className="text-xs text-gray-400 font-semibold">Enter accurate location info and position the map pin.</p>
                 </div>
 
-                <FormInput
+                <GooglePlacesAutocompleteInput
                   label="Locality / Address"
                   placeholder="e.g. Sector 2, Lane 4, HSR Layout"
                   value={address}
-                  onChange={setAddress}
+                  onChange={(val, coords) => {
+                    setAddress(val);
+                    if (coords) {
+                      setMapCenter(coords);
+                    }
+                  }}
                   icon={<MapPin size={18} className="text-[#128A4E]" />}
+                  cityContext={selectedCity}
                 />
 
-                <FormInput
+                <GooglePlacesAutocompleteInput
                   label="Nearby Landmarks (optional)"
                   placeholder="e.g. Beside Star Biryani or HSR Club"
                   value={landmark}
-                  onChange={setLandmark}
+                  onChange={(val) => setLandmark(val)}
+                  cityContext={selectedCity}
                 />
 
                 {/* Simulated Map with Pin */}
@@ -1696,8 +1777,9 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                         }`}
                       >
                         <p>{m.text}</p>
-                        <span className={`text-[9px] self-end mt-1 ${isMe ? 'text-white/70' : 'text-gray-400'}`}>
-                          {m.timestamp}
+                        <span className={`text-[9px] self-end mt-1 flex items-center gap-1 ${isMe ? 'text-white/70' : 'text-gray-400'}`}>
+                          <span>{m.timestamp}</span>
+                          {m.status === 'pending' && <span className="text-[10px] animate-pulse">⏳ (queued)</span>}
                         </span>
                       </div>
                     );
@@ -1904,10 +1986,11 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                     onChange={(val) => setUserProfile({ ...userProfile, age: val })}
                     type="number"
                   />
-                  <FormInput
+                  <AutocompleteInput
                     label="Occupation"
                     value={userProfile.occupation}
                     onChange={(val) => setUserProfile({ ...userProfile, occupation: val })}
+                    suggestions={OCCUPATIONS}
                   />
                 </div>
 
