@@ -294,7 +294,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         </form>
       )}
 
-      {/* ONBOARDING STEP 3: Room Preferences */}
+      {/* ONBOARDING STEP 3: Roommate Preferences */}
       {currentOnboardingStep === 3 && (
         <form onSubmit={handleStep3Submit} className="flex flex-col justify-between flex-1 gap-6">
           <div className="flex flex-col gap-6">
@@ -304,13 +304,13 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
 
             <div className="flex flex-col gap-1">
               <ProgressBar currentStep={3} totalSteps={6} />
-              <h1 className="text-[28px] font-bold text-[#0F172A] mt-3">Room Preferences</h1>
+              <h1 className="text-[28px] font-bold text-[#0F172A] mt-3">Roommate Preferences</h1>
               <p className="text-[15px] text-[#6B7280]">
-                Where would you like to live and what is your budget?
+                Tell us about your ideal roommate and room expectations.
               </p>
             </div>
 
-            <div className="flex flex-col gap-6 mt-2">
+            <div className="flex flex-col gap-6 mt-2 pb-4 max-h-[420px] overflow-y-auto pr-1">
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-medium text-[#0F172A]">Target City in India</label>
                 <div className="flex flex-wrap gap-2">
@@ -365,6 +365,97 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
                 options={['Private Room', 'Shared Room', 'Entire Flat']}
                 selectedValue={roomPref.sharingType}
                 onSelect={(val) => setRoomPref({ ...roomPref, sharingType: val })}
+              />
+
+              <FormInput
+                label="Preferred Move-in Date"
+                type="date"
+                value={roomPref.moveInDate || ''}
+                onChange={(val) => setRoomPref({ ...roomPref, moveInDate: val })}
+              />
+
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-[#0F172A]">Preferred Roommate Gender</label>
+                <div className="flex gap-1 h-11 bg-gray-100 p-1 rounded-xl">
+                  {['Male', 'Female', 'Other', 'Any'].map((g) => {
+                    const isSel = (roomPref.preferredGender || 'Any') === g;
+                    return (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setRoomPref({ ...roomPref, preferredGender: g as any })}
+                        className={`flex-1 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                          isSel
+                            ? 'bg-[#128A4E] text-white shadow-sm'
+                            : 'text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <FormInput
+                label="Preferred Locality / Area"
+                placeholder="e.g. Indiranagar, Koramangala"
+                value={roomPref.preferredLocality || ''}
+                onChange={(val) => setRoomPref({ ...roomPref, preferredLocality: val })}
+              />
+
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <label className="text-sm font-medium text-[#0F172A]">Preferred Roommate Age Range</label>
+                  <span className="text-xs font-bold text-[#128A4E]">
+                    {roomPref.preferredAgeMin || 18} – {roomPref.preferredAgeMax || 60} years
+                  </span>
+                </div>
+                <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-xl border border-gray-100">
+                  <div className="flex-1 flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-gray-400">Min Age</span>
+                    <input
+                      type="range"
+                      min="18"
+                      max="60"
+                      value={roomPref.preferredAgeMin || 18}
+                      onChange={(e) => {
+                        const minVal = Number(e.target.value);
+                        const maxVal = roomPref.preferredAgeMax || 60;
+                        setRoomPref({ 
+                          ...roomPref, 
+                          preferredAgeMin: Math.min(minVal, maxVal) 
+                        });
+                      }}
+                      className="w-full accent-[#128A4E] h-1.5 bg-gray-200 rounded-lg cursor-pointer"
+                    />
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-gray-400">Max Age</span>
+                    <input
+                      type="range"
+                      min="18"
+                      max="60"
+                      value={roomPref.preferredAgeMax || 60}
+                      onChange={(e) => {
+                        const maxVal = Number(e.target.value);
+                        const minVal = roomPref.preferredAgeMin || 18;
+                        setRoomPref({ 
+                          ...roomPref, 
+                          preferredAgeMax: Math.max(maxVal, minVal) 
+                        });
+                      }}
+                      className="w-full accent-[#128A4E] h-1.5 bg-gray-200 rounded-lg cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <FormInput
+                label="Preferred Language"
+                placeholder="e.g. Hindi, English, Kannada"
+                value={roomPref.preferredLanguage || ''}
+                onChange={(val) => setRoomPref({ ...roomPref, preferredLanguage: val })}
               />
             </div>
           </div>

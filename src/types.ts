@@ -22,6 +22,12 @@ export interface RoomPreferences {
   budgetMin: number;
   budgetMax: number;
   sharingType: 'Private Room' | 'Shared Room' | 'Entire Flat' | '';
+  moveInDate?: string;
+  preferredGender?: 'Male' | 'Female' | 'Other' | 'Any' | '';
+  preferredLocality?: string;
+  preferredAgeMin?: number;
+  preferredAgeMax?: number;
+  preferredLanguage?: string;
 }
 
 export interface LifestyleHabits {

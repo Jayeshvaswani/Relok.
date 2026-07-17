@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { APIProvider, Map, AdvancedMarker, Pin } from '@vis.gl/react-google-maps';
 import { 
   Home as HomeIcon, 
   Users, 
@@ -89,7 +90,7 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(false);
   const [selectedRoom, setSelectedRoom] = useState<RoomListing | null>(null);
   const [activeChatThread, setActiveChatThread] = useState<ChatThread | null>(null);
-  const [chatFilter, setChatFilter] = useState<'all' | 'unread' | 'matches' | 'inquiries' | 'archive'>('all');
+  const [chatFilter, setChatFilter] = useState<'all' | 'unread' | 'matches' | 'messages' | 'system'>('all');
   const [chatInputText, setChatInputText] = useState<string>('');
   const [isTyping, setIsTyping] = useState<boolean>(false);
 
@@ -112,14 +113,68 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
   const [newRoomAmenities, setNewRoomAmenities] = useState<string[]>([]);
   const [lifestylePrefs, setLifestylePrefs] = useState<string[]>([]);
   const [roommateGender, setRoommateGender] = useState<'Male' | 'Female' | 'Any'>('Any');
-  const [preferredAgeRange, setPreferredAgeRange] = useState<number>(25);
+  const [preferredAgeMin, setPreferredAgeMin] = useState<number>(18);
+  const [preferredAgeMax, setPreferredAgeMax] = useState<number>(60);
   
   // Step 4
   const [address, setAddress] = useState('');
   const [pinAccuracy, setPinAccuracy] = useState<'Exact' | 'Near Exact' | 'Approximate'>('Exact');
   const [landmark, setLandmark] = useState('');
+  const [mapCenter, setMapCenter] = useState({ lat: 12.9116, lng: 77.6389 });
+
+  const GOOGLE_MAPS_API_KEY = 
+    (process.env as any).GOOGLE_MAPS_PLATFORM_KEY || 
+    (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY || 
+    '';
 
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallPromo, setShowInstallPromo] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
+    setIsIOS(isIosDevice);
+
+    const handleInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallPromo(true);
+    };
+    window.addEventListener('beforeinstallprompt', handleInstallPrompt);
+
+    // iOS Web App check
+    if (isIosDevice && !(window.navigator as any).standalone) {
+      setShowInstallPromo(true);
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('beforeinstallprompt', handleInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((choiceResult: any) => {
+        if (choiceResult.outcome === 'accepted') {
+          showToast('Relok successfully installed!');
+        }
+        setDeferredPrompt(null);
+        setShowInstallPromo(false);
+      });
+    }
+  };
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -319,6 +374,67 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
   return (
     <div className="w-full flex flex-col min-h-screen pb-24 text-[#0F172A] relative">
       
+      {/* Offline Status indicator */}
+      {isOffline && (
+        <div className="bg-amber-500 text-white text-[11px] font-black py-2 px-4 flex items-center justify-between gap-2 shadow-xs sticky top-0 z-40 animate-pulse">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm">⚠️</span>
+            <span>You are currently offline. Working with local offline-ready database.</span>
+          </div>
+          <button 
+            onClick={() => {
+              if (navigator.onLine) {
+                setIsOffline(false);
+                showToast("Connected to server successfully!");
+              } else {
+                showToast("Still offline. Trying again...");
+              }
+            }}
+            className="bg-white/20 hover:bg-white/35 text-white text-[9px] font-black px-2 py-1 rounded-md transition-all uppercase tracking-wider cursor-pointer active:scale-95"
+          >
+            Check Sync
+          </button>
+        </div>
+      )}
+
+      {/* PWA App Installation Promo Banner */}
+      {showInstallPromo && (
+        <div className="mx-6 mt-4 bg-slate-900 text-white rounded-2xl p-4 shadow-md relative overflow-hidden flex flex-col gap-2 border border-slate-800 animate-in slide-in-from-top-4 duration-300">
+          <button 
+            onClick={() => setShowInstallPromo(false)}
+            className="absolute top-3 right-3 text-white/50 hover:text-white cursor-pointer transition-colors"
+          >
+            <X size={14} />
+          </button>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs bg-[#128A4E] text-white font-extrabold px-2 py-0.5 rounded-md">PWA INSTANT</span>
+            <p className="text-[10px] font-black tracking-wider uppercase text-emerald-400">Install Relok App ✨</p>
+          </div>
+          <h4 className="text-xs font-bold leading-relaxed max-w-[85%] text-slate-200">
+            {isIOS 
+              ? "To install Relok Co-Living on your iPhone, tap Safari's Share button and select 'Add to Home Screen' for standalone access!"
+              : "Install Relok on your device home screen for lightning-fast matching and offline message access."
+            }
+          </h4>
+          {!isIOS && (
+            <div className="flex gap-2 mt-1">
+              <button 
+                onClick={handleInstallClick} 
+                className="text-[10px] font-extrabold bg-[#128A4E] hover:bg-[#0D6D3B] text-white px-3.5 py-2 rounded-xl active:scale-95 transition-all cursor-pointer shadow-sm"
+              >
+                Install App
+              </button>
+              <button 
+                onClick={() => setShowInstallPromo(false)} 
+                className="text-[10px] font-extrabold bg-white/10 hover:bg-white/15 text-white px-3.5 py-2 rounded-xl active:scale-95 transition-all cursor-pointer"
+              >
+                Maybe Later
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-[#128A4E] text-white px-5 py-3.5 rounded-2xl shadow-lg z-50 flex items-center gap-2 border border-white/20 animate-bounce">
@@ -392,7 +508,7 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
               <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder={`Search flatmates or rooms in ${selectedCity}...`}
+                placeholder="Search flatmates or rooms..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full h-11 bg-white border border-gray-200 rounded-xl text-xs pl-11 pr-10 focus:outline-none focus:border-[#128A4E] text-[#0F172A] placeholder-[#9CA3AF] shadow-sm font-semibold"
@@ -435,30 +551,6 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
               ))}
             </div>
 
-            {/* 4. Promotional Banner (Relok Rewards, dismissable) */}
-            {showRewardsBanner && (
-              <div className="bg-gradient-to-r from-[#128A4E] to-[#0D6D3B] text-white rounded-2xl p-4 shadow-sm relative overflow-hidden flex flex-col gap-1.5 border border-[#128A4E]/25">
-                <button 
-                  onClick={() => setShowRewardsBanner(false)}
-                  className="absolute top-3 right-3 text-white/70 hover:text-white cursor-pointer transition-colors"
-                >
-                  <X size={15} />
-                </button>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs bg-[#E8F5EE]/25 text-white font-extrabold px-2 py-0.5 rounded-md">PROMO</span>
-                  <p className="text-[11px] font-black tracking-wider uppercase text-emerald-200">Refer & Earn Rewards 🎁</p>
-                </div>
-                <h4 className="text-xs font-bold leading-normal max-w-[85%]">
-                  Earn ₹500 Amazon Gift Voucher upon referring roommates! Share your unique match code to redeem rewards.
-                </h4>
-                <div className="flex gap-2 mt-1">
-                  <button onClick={() => { showToast("Referral link copied to clipboard!"); }} className="text-[10px] font-extrabold bg-white text-[#128A4E] px-3 py-1.5 rounded-lg active:scale-95 transition-all cursor-pointer">
-                    Copy Link
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* ALL LISTINGS: HORIZONTAL SCROLL DASHBOARD */}
             {homeFilter === 'all' && (
               <div className="flex flex-col gap-6 mt-1">
@@ -467,7 +559,7 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                   <div className="flex justify-between items-center">
                     <h3 className="text-sm font-extrabold text-gray-950 flex items-center gap-1.5">
                       <Users size={16} className="text-[#128A4E]" />
-                      Highly Compatible Seekers
+                      Highly Compatible Matches
                     </h3>
                     <button 
                       onClick={() => setHomeFilter('roommates')}
@@ -573,20 +665,7 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                   </div>
                 </div>
 
-                {/* C. Dynamic Matching CTA Banner */}
-                <div className="bg-[#E8F5EE] border-2 border-dashed border-[#128A4E]/25 rounded-2xl p-5 flex flex-col gap-2 text-center items-center">
-                  <span className="text-xl">✨</span>
-                  <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider">Find your perfect co-living vibe!</h4>
-                  <p className="text-[11px] text-gray-500 font-semibold max-w-[90%] leading-relaxed">
-                    Instantly analyze roommate parameters against our verified leads in {selectedCity} to unlock scores!
-                  </p>
-                  <button 
-                    onClick={() => setHomeFilter('roommates')}
-                    className="mt-2 text-xs font-extrabold bg-[#128A4E] hover:bg-[#0D6D3B] text-white py-2 px-4 rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
-                  >
-                    View Matching Profiles
-                  </button>
-                </div>
+
               </div>
             )}
 
@@ -1194,26 +1273,42 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                   </div>
                 </div>
 
-                {/* Preferred Age Range pill */}
+                {/* Preferred Age Range */}
                 <div className="flex flex-col gap-2">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Preferred Flatmate Age</label>
-                  <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-gray-100">
-                    <span className="text-xs text-gray-500 font-semibold">Around:</span>
-                    <div className="flex items-center gap-1.5">
-                      {[22, 25, 28, 32].map((age) => (
-                        <button
-                          key={age}
-                          type="button"
-                          onClick={() => setPreferredAgeRange(age)}
-                          className={`w-10 h-8 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            preferredAgeRange === age
-                              ? 'bg-[#128A4E] text-white'
-                              : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-                          }`}
-                        >
-                          {age}s
-                        </button>
-                      ))}
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Preferred Flatmate Age</label>
+                    <span className="text-xs font-bold text-[#128A4E]">
+                      {preferredAgeMin} – {preferredAgeMax} years
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-xl border border-gray-100">
+                    <div className="flex-1 flex flex-col gap-1">
+                      <span className="text-[10px] font-bold text-gray-400">Min Age</span>
+                      <input
+                        type="range"
+                        min="18"
+                        max="60"
+                        value={preferredAgeMin}
+                        onChange={(e) => {
+                          const minVal = Number(e.target.value);
+                          setPreferredAgeMin(Math.min(minVal, preferredAgeMax));
+                        }}
+                        className="w-full accent-[#128A4E] h-1.5 bg-gray-200 rounded-lg cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex-1 flex flex-col gap-1">
+                      <span className="text-[10px] font-bold text-gray-400">Max Age</span>
+                      <input
+                        type="range"
+                        min="18"
+                        max="60"
+                        value={preferredAgeMax}
+                        onChange={(e) => {
+                          const maxVal = Number(e.target.value);
+                          setPreferredAgeMax(Math.max(maxVal, preferredAgeMin));
+                        }}
+                        className="w-full accent-[#128A4E] h-1.5 bg-gray-200 rounded-lg cursor-pointer"
+                      />
                     </div>
                   </div>
                 </div>
@@ -1257,32 +1352,53 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                 {/* Simulated Map with Pin */}
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Pin Location on Map</label>
-                  <div className="h-40 rounded-xl bg-slate-100 border border-gray-200 relative overflow-hidden flex flex-col items-center justify-center">
-                    {/* Simulated Map SVG Background */}
-                    <div className="absolute inset-0 opacity-40 select-none">
-                      <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-                        <defs>
-                          <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="gray" strokeWidth="0.5"/>
-                          </pattern>
-                        </defs>
-                        <rect width="100%" height="100%" fill="url(#grid)" />
-                        {/* Diagonal lines to look like roads */}
-                        <line x1="0" y1="50" x2="430" y2="150" stroke="#CBD5E1" strokeWidth="6" />
-                        <line x1="80" y1="0" x2="120" y2="200" stroke="#CBD5E1" strokeWidth="4" strokeDasharray="3" />
-                      </svg>
-                    </div>
-                    {/* Map center marker */}
-                    <div className="z-10 flex flex-col items-center gap-1">
+                  <div className="h-40 rounded-xl overflow-hidden border border-gray-200 relative">
+                    {GOOGLE_MAPS_API_KEY ? (
+                      <APIProvider apiKey={GOOGLE_MAPS_API_KEY} version="weekly">
+                        <Map
+                          defaultCenter={mapCenter}
+                          defaultZoom={15}
+                          mapId="DEMO_MAP_ID"
+                          internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
+                          style={{ width: '100%', height: '100%' }}
+                          onCenterChanged={(ev) => {
+                            if (ev.detail.center) {
+                              setMapCenter(ev.detail.center);
+                            }
+                          }}
+                        >
+                          <AdvancedMarker
+                            position={mapCenter}
+                            draggable={true}
+                            onDragEnd={(ev) => {
+                              if (ev.latLng) {
+                                setMapCenter({ lat: ev.latLng.lat(), lng: ev.latLng.lng() });
+                              }
+                            }}
+                          >
+                            <Pin background="#128A4E" glyphColor="#fff" borderColor="#0D6D3B" />
+                          </AdvancedMarker>
+                        </Map>
+                      </APIProvider>
+                    ) : (
+                      <iframe
+                        title="OSM Map"
+                        width="100%"
+                        height="100%"
+                        style={{ border: 0 }}
+                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${mapCenter.lng - 0.005}%2C${mapCenter.lat - 0.003}%2C${mapCenter.lng + 0.005}%2C${mapCenter.lat + 0.003}&layer=mapnik&marker=${mapCenter.lat}%2C${mapCenter.lng}`}
+                      />
+                    )}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center gap-1 pointer-events-none">
                       <MapPin size={28} className="text-red-500 fill-red-200 animate-bounce" />
                       <span className="bg-slate-900/80 backdrop-blur-xs text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-md">
                         Draggable Pin
                       </span>
                     </div>
-
                     <button 
                       type="button"
                       onClick={() => {
+                        setMapCenter({ lat: 12.9116, lng: 77.6389 });
                         setAddress('Sector 3, HSR Layout');
                         setLandmark('Near Sector 3 Park');
                         showToast("Auto-filled HSR Layout!");
@@ -1642,8 +1758,8 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                     { id: 'all', label: 'All' },
                     { id: 'unread', label: 'Unread' },
                     { id: 'matches', label: 'Matches' },
-                    { id: 'inquiries', label: 'Inquiries' },
-                    { id: 'archive', label: 'Archive' }
+                    { id: 'messages', label: 'Messages' },
+                    { id: 'system', label: 'System' }
                   ].map((tab) => (
                     <button
                       key={tab.id}
@@ -1665,10 +1781,30 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                       if (chatFilter === 'all') return !chat.isArchived;
                       if (chatFilter === 'unread') return chat.unread && !chat.isArchived;
                       if (chatFilter === 'matches') return !chat.roomListing && !chat.isArchived;
-                      if (chatFilter === 'inquiries') return !!chat.roomListing && !chat.isArchived;
-                      if (chatFilter === 'archive') return !!chat.isArchived;
+                      if (chatFilter === 'messages') return !!chat.roomListing && !chat.isArchived;
+                      if (chatFilter === 'system') return false;
                       return true;
                     });
+
+                    if (chatFilter === 'system') {
+                      return (
+                        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col gap-3 shadow-sm">
+                          <div className="flex items-center gap-2.5 pb-2.5 border-b border-gray-50">
+                            <div className="w-8 h-8 rounded-full bg-[#E8F5EE] flex items-center justify-center text-[#128A4E] text-xs font-bold">
+                              📢
+                            </div>
+                            <div>
+                              <h5 className="text-xs font-black text-gray-900">Relok Support</h5>
+                              <p className="text-[10px] text-gray-400 font-semibold">System Notification</p>
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-600 leading-relaxed font-semibold">
+                            Welcome to Relok V1! Your account setup is complete. Explore our platform to find highly compatible matches, message potential flatmates, and post listings.
+                          </p>
+                          <span className="text-[9px] text-gray-400 font-bold self-end">Just now</span>
+                        </div>
+                      );
+                    }
 
                     if (filtered.length === 0) {
                       return (
@@ -1932,82 +2068,7 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
               </div>
             )}
 
-            {/* CRITICAL ROUTING & SIMULATOR TESTING DESK */}
-            <div className="bg-[#E8F5EE] border-2 border-[#128A4E]/30 rounded-2xl p-5 shadow-sm flex flex-col gap-4 mt-2">
-              <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#128A4E] animate-pulse" />
-                <h4 className="text-sm font-bold text-[#128A4E] uppercase tracking-wider">
-                  Interactive Simulator Controls
-                </h4>
-              </div>
 
-              <p className="text-xs text-gray-600 leading-relaxed">
-                Use these controls to test the critical routing fixes, login/register flows, and empty states requested in the prompt.
-              </p>
-
-              <div className="flex flex-col gap-2 border-t border-[#128A4E]/20 pt-3">
-                <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-gray-200">
-                  <span className="text-xs font-bold text-gray-700">Onboarding Flag:</span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => {
-                        setHasCompletedOnboarding(true);
-                        showToast('Onboarding flag enabled (returning user)');
-                      }}
-                      className={`text-[10px] font-bold px-2.5 py-1 rounded-md transition-all ${
-                        hasCompletedOnboarding 
-                          ? 'bg-[#128A4E] text-white' 
-                          : 'bg-gray-100 text-gray-500'
-                      }`}
-                    >
-                      Completed
-                    </button>
-                    <button
-                      onClick={() => {
-                        setHasCompletedOnboarding(false);
-                        showToast('Onboarding flag cleared (new user)');
-                      }}
-                      className={`text-[10px] font-bold px-2.5 py-1 rounded-md transition-all ${
-                        !hasCompletedOnboarding 
-                          ? 'bg-amber-500 text-white' 
-                          : 'bg-gray-100 text-gray-500'
-                      }`}
-                    >
-                      Cleared (New User)
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <button
-                    onClick={onResetAll}
-                    className="w-full h-11 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-700 transition-colors active:scale-95 cursor-pointer"
-                  >
-                    Reset All State (Logout)
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setHasCompletedOnboarding(false);
-                      setUserProfile({
-                        fullName: '',
-                        age: '',
-                        gender: '',
-                        occupation: '',
-                        education: '',
-                        bio: '',
-                        photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200&h=200'
-                      });
-                      onResetAll();
-                      showToast('State reset to onboarding Step 1');
-                    }}
-                    className="w-full h-11 rounded-xl text-xs font-bold text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition-all active:scale-95 cursor-pointer"
-                  >
-                    Force Onboarding
-                  </button>
-                </div>
-              </div>
-            </div>
 
           </div>
         )}

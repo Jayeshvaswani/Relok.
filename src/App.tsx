@@ -51,7 +51,13 @@ export default function App() {
     cities: [],
     budgetMin: 0,
     budgetMax: 0,
-    sharingType: ''
+    sharingType: '',
+    moveInDate: '',
+    preferredGender: 'Any',
+    preferredLocality: '',
+    preferredAgeMin: 18,
+    preferredAgeMax: 60,
+    preferredLanguage: ''
   });
 
   const [lifestyleHabits, setLifestyleHabits] = useState<LifestyleHabits>({
