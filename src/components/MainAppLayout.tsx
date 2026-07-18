@@ -36,6 +36,7 @@ import { PrimaryButton, SecondaryButton, FormInput, FormTextarea, PillSelector }
 import { OCCUPATIONS, COLLEGES } from '../data/autocompleteData';
 import { AutocompleteInput } from './AutocompleteInput';
 import { GooglePlacesAutocompleteInput } from './GooglePlacesAutocompleteInput';
+import { BrokerDashboard } from './BrokerDashboard';
 
 interface MainAppLayoutProps {
   userProfile: UserProfile;
@@ -56,6 +57,24 @@ interface MainAppLayoutProps {
   onResetAll: () => void;
   hasCompletedOnboarding: boolean;
   setHasCompletedOnboarding: (val: boolean) => void;
+  
+  // NEW INTENT / BROKER PROPS:
+  initialActiveTab?: 'home' | 'matches' | 'post' | 'chats' | 'profile';
+  initialHomeFilter?: 'all' | 'rooms' | 'roommates' | 'my';
+  initialSharingTypeFilter?: 'Private Room' | 'Shared Room' | '';
+  isBroker?: boolean;
+  setIsBroker?: (val: boolean) => void;
+  brokerVerificationStatus?: 'pending' | 'under_review' | 'verified';
+  setBrokerVerificationStatus?: (val: 'pending' | 'under_review' | 'verified') => void;
+  agencyName?: string;
+  setAgencyName?: (val: string) => void;
+  brokerDetails?: {
+    agencyName: string;
+    brokerType: 'Individual Agent' | 'Agency';
+    experience: string;
+    areas: string[];
+    reraNumber: string;
+  } | null;
 }
 
 export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
@@ -76,16 +95,47 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
   setChats,
   onResetAll,
   hasCompletedOnboarding,
-  setHasCompletedOnboarding
+  setHasCompletedOnboarding,
+  
+  initialActiveTab = 'home',
+  initialHomeFilter = 'all',
+  initialSharingTypeFilter = '',
+  isBroker = false,
+  setIsBroker,
+  brokerVerificationStatus = 'pending',
+  setBrokerVerificationStatus,
+  agencyName = '',
+  setAgencyName,
+  brokerDetails = null,
 }) => {
-  const [activeTab, setActiveTab] = useState<'home' | 'matches' | 'post' | 'chats' | 'profile'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'matches' | 'post' | 'chats' | 'profile'>(initialActiveTab);
   const [selectedCity, setSelectedCity] = useState<string>('Bengaluru');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [homeFilter, setHomeFilter] = useState<'all' | 'rooms' | 'roommates' | 'my'>('all');
+  const [homeFilter, setHomeFilter] = useState<'all' | 'rooms' | 'roommates' | 'my'>(initialHomeFilter);
+  const [roomSharingFilter, setRoomSharingFilter] = useState<'Private Room' | 'Shared Room' | ''>(initialSharingTypeFilter);
   const [showCityDropdown, setShowCityDropdown] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialActiveTab) {
+      setActiveTab(initialActiveTab);
+    }
+  }, [initialActiveTab]);
+
+  useEffect(() => {
+    if (initialHomeFilter) {
+      setHomeFilter(initialHomeFilter);
+    }
+  }, [initialHomeFilter]);
+
+  useEffect(() => {
+    if (initialSharingTypeFilter !== undefined) {
+      setRoomSharingFilter(initialSharingTypeFilter);
+    }
+  }, [initialSharingTypeFilter]);
   const [showRewardsBanner, setShowRewardsBanner] = useState<boolean>(true);
   const [savedRooms, setSavedRooms] = useState<string[]>([]);
+  const [deactivatedRooms, setDeactivatedRooms] = useState<string[]>([]);
 
   // Detail Modal States
   const [selectedRoommate, setSelectedRoommate] = useState<RoommateCard | null>(null);
@@ -358,7 +408,9 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
       room.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       room.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
       room.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCity && matchesSearch;
+    const matchesSharing = !roomSharingFilter || room.sharingType === roomSharingFilter;
+    const isNotDeactivated = !deactivatedRooms.includes(room.id);
+    return matchesCity && matchesSearch && matchesSharing && isNotDeactivated;
   });
 
   const sortedRoommates = [...filteredRoommates].sort((a, b) => {
@@ -699,6 +751,19 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                 <span>{userLocation ? 'Near Me' : 'Near Me'}</span>
               </button>
             </div>
+
+            {roomSharingFilter && (
+              <div className="flex items-center gap-1.5 self-start bg-[#E8F5EE] border border-[#128A4E]/20 text-[#128A4E] text-[10px] font-bold px-2.5 py-1 rounded-full shadow-2xs mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                <span>Filter: {roomSharingFilter}</span>
+                <button 
+                  onClick={() => setRoomSharingFilter('')}
+                  className="p-0.5 hover:bg-[#128A4E]/10 rounded-full transition-colors cursor-pointer"
+                  type="button"
+                >
+                  <X size={10} strokeWidth={3} />
+                </button>
+              </div>
+            )}
 
             {/* 3. Category Navigation Tabs */}
             <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar scroll-smooth">
@@ -2101,210 +2166,228 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
 
         {/* TAB 5: PROFILE & SIMULATOR OPTIONS */}
         {activeTab === 'profile' && (
-          <div className="flex flex-col gap-5">
-            {/* 1. Header with Title & Edit Toggle */}
-            <div className="flex justify-between items-center pb-3 border-b border-gray-100">
-              <h2 className="text-lg font-extrabold text-[#0F172A] flex items-center gap-1.5">
-                <svg className="w-5 h-5 text-[#128A4E]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                Profile Hub
-              </h2>
-              <button 
-                onClick={() => setIsEditingProfile(!isEditingProfile)}
-                className="text-xs font-black text-[#128A4E] hover:underline flex items-center gap-1 bg-[#E8F5EE] py-1.5 px-3 rounded-xl cursor-pointer"
-              >
-                {isEditingProfile ? 'Done Editing ✓' : 'Edit Profile ✎'}
-              </button>
-            </div>
-
-            {/* Profile editing mode vs dashboard mode */}
-            {isEditingProfile ? (
-              // EDITING VIEW
-              <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm flex flex-col gap-4">
-                <h4 className="text-xs font-extrabold uppercase tracking-wider text-gray-400">Edit Profile Attributes</h4>
-                
-                <FormInput
-                  label="Full Name"
-                  value={userProfile.fullName}
-                  onChange={(val) => setUserProfile({ ...userProfile, fullName: val })}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormInput
-                    label="Age"
-                    value={userProfile.age}
-                    onChange={(val) => setUserProfile({ ...userProfile, age: val })}
-                    type="number"
-                  />
-                  <AutocompleteInput
-                    label="Occupation"
-                    value={userProfile.occupation}
-                    onChange={(val) => setUserProfile({ ...userProfile, occupation: val })}
-                    suggestions={OCCUPATIONS}
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-extrabold text-gray-500 uppercase tracking-wider">Bio Biography</label>
-                  <textarea
-                    rows={3}
-                    value={userProfile.bio}
-                    onChange={(e) => setUserProfile({ ...userProfile, bio: e.target.value })}
-                    placeholder="Tell prospective roommates about your lifestyle, vibes, and expectations..."
-                    className="w-full bg-[#F8FAFC] border border-gray-200 rounded-xl p-3 text-xs focus:outline-none focus:border-[#128A4E] font-semibold text-[#0F172A]"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-extrabold text-gray-500 uppercase tracking-wider">My Sleep Schedule</label>
-                  <select
-                    value={lifestylePref.sleepSchedule}
-                    onChange={(e) => setLifestylePref({ ...lifestylePref, sleepSchedule: e.target.value as any })}
-                    className="bg-white border border-gray-200 rounded-xl p-2.5 text-xs text-gray-700 font-extrabold"
-                  >
-                    <option value="Early Bird">Early Bird</option>
-                    <option value="Night Owl">Night Owl</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-extrabold text-gray-500 uppercase tracking-wider">My Cleanliness Level</label>
-                  <select
-                    value={lifestylePref.cleanliness}
-                    onChange={(e) => setLifestylePref({ ...lifestylePref, cleanliness: e.target.value as any })}
-                    className="bg-white border border-gray-200 rounded-xl p-2.5 text-xs text-gray-700 font-extrabold"
-                  >
-                    <option value="Spick & Span">Spick & Span</option>
-                    <option value="Moderate">Moderate</option>
-                    <option value="Chill">Chill</option>
-                  </select>
-                </div>
-
+          isBroker ? (
+            <BrokerDashboard
+              agencyName={agencyName}
+              setAgencyName={setAgencyName!}
+              brokerType={brokerDetails?.brokerType || 'Individual Agent'}
+              experience={brokerDetails?.experience || '1'}
+              areas={brokerDetails?.areas || ['Bengaluru']}
+              reraNumber={brokerDetails?.reraNumber || ''}
+              brokerVerificationStatus={brokerVerificationStatus}
+              setBrokerVerificationStatus={setBrokerVerificationStatus!}
+              myRooms={myRooms}
+              setRoomListings={setRoomListings}
+              chats={chats}
+              setChats={setChats}
+              setActiveChatThread={setActiveChatThread}
+              setActiveTab={setActiveTab}
+              onResetAll={onResetAll}
+              showToast={showToast}
+            />
+          ) : (
+            <div className="flex flex-col gap-5">
+              {/* 1. Header with Title & Edit Toggle */}
+              <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+                <h2 className="text-lg font-extrabold text-[#0F172A] flex items-center gap-1.5">
+                  <svg className="w-5 h-5 text-[#128A4E]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  Profile Hub
+                </h2>
                 <button 
-                  onClick={() => {
-                    setIsEditingProfile(false);
-                    showToast('Profile changes saved!');
-                  }}
-                  className="w-full h-11 rounded-xl text-xs font-bold bg-[#128A4E] hover:bg-[#0D6D3B] text-white cursor-pointer shadow-sm active:scale-95 transition-all"
+                  onClick={() => setIsEditingProfile(!isEditingProfile)}
+                  className="text-xs font-black text-[#128A4E] hover:underline flex items-center gap-1 bg-[#E8F5EE] py-1.5 px-3 rounded-xl cursor-pointer"
                 >
-                  Save Profile Info
+                  {isEditingProfile ? 'Done Editing ✓' : 'Edit Profile ✎'}
                 </button>
               </div>
-            ) : (
-              // HUB DASHBOARD VIEW
-              <div className="flex flex-col gap-5">
-                {/* 2. Profile Card */}
-                <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs flex gap-4 items-center">
-                  <div className="relative shrink-0">
-                    <img 
-                      src={userProfile.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200&h=200'} 
-                      alt={userProfile.fullName || 'User'} 
-                      className="w-14 h-14 rounded-full object-cover border border-gray-100"
-                      referrerPolicy="no-referrer"
+
+              {/* Profile editing mode vs dashboard mode */}
+              {isEditingProfile ? (
+                // EDITING VIEW
+                <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm flex flex-col gap-4">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-gray-400">Edit Profile Attributes</h4>
+                  
+                  <FormInput
+                    label="Full Name"
+                    value={userProfile.fullName}
+                    onChange={(val) => setUserProfile({ ...userProfile, fullName: val })}
+                  />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormInput
+                      label="Age"
+                      value={userProfile.age}
+                      onChange={(val) => setUserProfile({ ...userProfile, age: val })}
+                      type="number"
                     />
-                    <div className="absolute bottom-0 right-0 bg-[#128A4E] text-white p-0.5 rounded-full border border-white">
-                      <Check size={11} strokeWidth={3} />
-                    </div>
+                    <AutocompleteInput
+                      label="Occupation"
+                      value={userProfile.occupation}
+                      onChange={(val) => setUserProfile({ ...userProfile, occupation: val })}
+                      suggestions={OCCUPATIONS}
+                    />
                   </div>
 
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-black text-[#0F172A] truncate">
-                      {userProfile.fullName || 'Guest Account'}
-                    </h3>
-                    <p className="text-[10px] text-gray-400 font-bold truncate">
-                      {userProfile.occupation || 'Configure details'} • {userProfile.age || '25'} yrs
-                    </p>
-                    <span className="inline-flex items-center gap-0.5 text-[9px] font-black text-[#128A4E] bg-[#E8F5EE] py-0.5 px-2 rounded-md mt-1.5">
-                      <MapPin size={9} />
-                      {selectedCity}
-                    </span>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-extrabold text-gray-500 uppercase tracking-wider">Bio Biography</label>
+                    <textarea
+                      rows={3}
+                      value={userProfile.bio}
+                      onChange={(e) => setUserProfile({ ...userProfile, bio: e.target.value })}
+                      placeholder="Tell prospective roommates about your lifestyle, vibes, and expectations..."
+                      className="w-full bg-[#F8FAFC] border border-gray-200 rounded-xl p-3 text-xs focus:outline-none focus:border-[#128A4E] font-semibold text-[#0F172A]"
+                    />
                   </div>
-                </div>
 
-                {/* 3. Completion Card */}
-                <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col gap-2 relative">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Profile Completeness</span>
-                    <span className="text-[10px] font-black text-[#128A4E]">85% Completed</span>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-extrabold text-gray-500 uppercase tracking-wider">My Sleep Schedule</label>
+                    <select
+                      value={lifestylePref.sleepSchedule}
+                      onChange={(e) => setLifestylePref({ ...lifestylePref, sleepSchedule: e.target.value as any })}
+                      className="bg-[#FFF] border border-gray-200 rounded-xl p-2.5 text-xs text-gray-700 font-extrabold"
+                    >
+                      <option value="Early Bird">Early Bird</option>
+                      <option value="Night Owl">Night Owl</option>
+                    </select>
                   </div>
-                  {/* Slim progress bar */}
-                  <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-[#128A4E] rounded-full" style={{ width: '85%' }} />
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-extrabold text-gray-500 uppercase tracking-wider">My Cleanliness Level</label>
+                    <select
+                      value={lifestylePref.cleanliness}
+                      onChange={(e) => setLifestylePref({ ...lifestylePref, cleanliness: e.target.value as any })}
+                      className="bg-[#FFF] border border-gray-200 rounded-xl p-2.5 text-xs text-gray-700 font-extrabold"
+                    >
+                      <option value="Spick & Span">Spick & Span</option>
+                      <option value="Moderate">Moderate</option>
+                      <option value="Chill">Chill</option>
+                    </select>
                   </div>
+
                   <button 
-                    onClick={() => setIsEditingProfile(true)}
-                    className="text-[10px] font-black text-[#128A4E] text-left hover:underline cursor-pointer"
+                    onClick={() => {
+                      setIsEditingProfile(false);
+                      showToast('Profile changes saved!');
+                    }}
+                    className="w-full h-11 rounded-xl text-xs font-bold bg-[#128A4E] hover:bg-[#0D6D3B] text-white cursor-pointer shadow-sm active:scale-95 transition-all"
                   >
-                    Complete remaining traits to hit 100% →
+                    Save Profile Info
                   </button>
                 </div>
-
-                {/* 4. Stats Row (Bento Grid Style) */}
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { label: 'Compatible', count: roommates.length, tag: 'Matches' },
-                    { label: 'My Listed', count: myRooms.length, tag: 'Properties' },
-                    { label: 'Conversations', count: chats.length, tag: 'Chats' }
-                  ].map((stat, idx) => (
-                    <div key={idx} className="bg-white border border-gray-100 p-3 rounded-xl flex flex-col items-center text-center gap-0.5">
-                      <span className="text-base font-black text-gray-900">{stat.count}</span>
-                      <span className="text-[9px] font-bold text-[#128A4E] uppercase tracking-wider leading-none">{stat.label}</span>
-                      <span className="text-[8px] text-gray-400 font-semibold">{stat.tag}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* 5. Sections List */}
-                <div className="bg-white border border-gray-200 rounded-2xl p-2.5 shadow-sm flex flex-col gap-1">
-                  {[
-                    { 
-                      title: 'Account Settings & Bio', 
-                      desc: 'Update email, phone, bio and socials', 
-                      icon: '👤',
-                      action: () => setIsEditingProfile(true) 
-                    },
-                    { 
-                      title: 'Lifestyle Preferences', 
-                      desc: 'Fine-tune matching parameters', 
-                      icon: '⚙️',
-                      action: () => setIsEditingProfile(true) 
-                    },
-                    { 
-                      title: 'Help & Support Desk', 
-                      desc: 'Speak to Relok team 24/7', 
-                      icon: '💬',
-                      action: () => showToast('Speak with our support team at: support@relok.in') 
-                    },
-                    { 
-                      title: 'Log Out Session', 
-                      desc: 'Safely clear cache and sign out', 
-                      icon: '🚪',
-                      action: onResetAll 
-                    }
-                  ].map((item, idx) => (
-                    <button
-                      key={idx}
-                      onClick={item.action}
-                      className="w-full text-left p-2.5 rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-between group cursor-pointer"
-                    >
-                      <div className="flex gap-3 items-center min-w-0">
-                        <span className="text-base shrink-0 bg-slate-100 w-8 h-8 rounded-lg flex items-center justify-center">{item.icon}</span>
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-xs font-bold text-gray-800 leading-tight group-hover:text-[#128A4E] transition-colors">{item.title}</span>
-                          <span className="text-[10px] text-gray-400 font-semibold truncate mt-0.5">{item.desc}</span>
-                        </div>
+              ) : (
+                // HUB DASHBOARD VIEW
+                <div className="flex flex-col gap-5">
+                  {/* 2. Profile Card */}
+                  <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs flex gap-4 items-center">
+                    <div className="relative shrink-0">
+                      <img 
+                        src={userProfile.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200&h=200'} 
+                        alt={userProfile.fullName || 'User'} 
+                        className="w-14 h-14 rounded-full object-cover border border-gray-100"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute bottom-0 right-0 bg-[#128A4E] text-white p-0.5 rounded-full border border-white">
+                        <Check size={11} strokeWidth={3} />
                       </div>
-                      <ChevronRight size={14} className="text-gray-300 group-hover:translate-x-1 transition-transform" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-black text-[#0F172A] truncate">
+                        {userProfile.fullName || 'Guest Account'}
+                      </h3>
+                      <p className="text-[10px] text-gray-400 font-bold truncate">
+                        {userProfile.occupation || 'Configure details'} • {userProfile.age || '25'} yrs
+                      </p>
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-black text-[#128A4E] bg-[#E8F5EE] py-0.5 px-2 rounded-md mt-1.5">
+                        <MapPin size={9} />
+                        {selectedCity}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 3. Completion Card */}
+                  <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col gap-2 relative">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Profile Completeness</span>
+                      <span className="text-[10px] font-black text-[#128A4E]">85% Completed</span>
+                    </div>
+                    {/* Slim progress bar */}
+                    <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#128A4E] rounded-full" style={{ width: '85%' }} />
+                    </div>
+                    <button 
+                      onClick={() => setIsEditingProfile(true)}
+                      className="text-[10px] font-black text-[#128A4E] text-left hover:underline cursor-pointer"
+                    >
+                      Complete remaining traits to hit 100% →
                     </button>
-                  ))}
+                  </div>
+
+                  {/* 4. Stats Row (Bento Grid Style) */}
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: 'Compatible', count: roommates.length, tag: 'Matches' },
+                      { label: 'My Listed', count: myRooms.length, tag: 'Properties' },
+                      { label: 'Conversations', count: chats.length, tag: 'Chats' }
+                    ].map((stat, idx) => (
+                      <div key={idx} className="bg-white border border-gray-100 p-3 rounded-xl flex flex-col items-center text-center gap-0.5">
+                        <span className="text-base font-black text-gray-900">{stat.count}</span>
+                        <span className="text-[9px] font-bold text-[#128A4E] uppercase tracking-wider leading-none">{stat.label}</span>
+                        <span className="text-[8px] text-gray-400 font-semibold">{stat.tag}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 5. Sections List */}
+                  <div className="bg-white border border-gray-200 rounded-2xl p-2.5 shadow-sm flex flex-col gap-1">
+                    {[
+                      { 
+                        title: 'Account Settings & Bio', 
+                        desc: 'Update email, phone, bio and socials', 
+                        icon: '👤',
+                        action: () => setIsEditingProfile(true) 
+                      },
+                      { 
+                        title: 'Lifestyle Preferences', 
+                        desc: 'Fine-tune matching parameters', 
+                        icon: '⚙️',
+                        action: () => setIsEditingProfile(true) 
+                      },
+                      { 
+                        title: 'Help & Support Desk', 
+                        desc: 'Speak to Relok team 24/7', 
+                        icon: '💬',
+                        action: () => showToast('Speak with our support team at: support@relok.in') 
+                      },
+                      { 
+                        title: 'Log Out Session', 
+                        desc: 'Safely clear cache and sign out', 
+                        icon: '🚪',
+                        action: onResetAll 
+                      }
+                    ].map((item, idx) => (
+                      <button
+                        key={idx}
+                        onClick={item.action}
+                        className="w-full text-left p-2.5 rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-between group cursor-pointer"
+                      >
+                        <div className="flex gap-3 items-center min-w-0">
+                          <span className="text-base shrink-0 bg-slate-100 w-8 h-8 rounded-lg flex items-center justify-center">{item.icon}</span>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-xs font-bold text-gray-800 leading-tight group-hover:text-[#128A4E] transition-colors">{item.title}</span>
+                            <span className="text-[10px] text-gray-400 font-semibold truncate mt-0.5">{item.desc}</span>
+                          </div>
+                        </div>
+                        <ChevronRight size={14} className="text-gray-300 group-hover:translate-x-1 transition-transform" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-
-
-
-          </div>
+              )}
+            </div>
+          )
         )}
       </main>
 
@@ -2316,70 +2399,72 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
             onClick={() => setSelectedRoommate(null)}
           >
             <div 
-              className="bg-white rounded-3xl w-full max-w-[400px] overflow-hidden shadow-2xl flex flex-col gap-5 border border-gray-100 animate-in zoom-in-95 duration-200"
+              className="bg-white rounded-3xl w-full max-w-[400px] max-h-[85vh] overflow-hidden shadow-2xl flex flex-col border border-gray-100 animate-in zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Photo backdrop */}
-              <div className="relative h-48 w-full bg-slate-100">
-                <img 
-                  src={selectedRoommate.photoUrl} 
-                  alt={selectedRoommate.name} 
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-                <button 
-                  onClick={() => setSelectedRoommate(null)}
-                  className="absolute top-4 right-4 w-9 h-9 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white backdrop-blur-xs cursor-pointer"
-                >
-                  <X size={18} />
-                </button>
-                <div className="absolute bottom-4 left-4 bg-[#128A4E] text-white font-bold text-xs px-3 py-1.5 rounded-full flex items-center gap-1 shadow-md">
-                  <Sparkles size={12} />
-                  <span>{getDynamicCompatibility(selectedRoommate)}% Match Score</span>
-                </div>
-              </div>
-
-              {/* Contents block */}
-              <div className="px-5 pb-6 flex flex-col gap-4">
-                <div className="flex flex-col">
-                  <h3 className="text-xl font-bold text-[#0F172A]">{selectedRoommate.name}</h3>
-                  <p className="text-xs font-medium text-gray-500 mt-1 flex items-center gap-1">
-                    <span>{selectedRoommate.age} years old</span>
-                    <span>•</span>
-                    <span>{selectedRoommate.gender}</span>
-                    <span>•</span>
-                    <span>{selectedRoommate.city}</span>
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-2.5 bg-[#E8F5EE]/40 rounded-2xl p-4 border border-[#128A4E]/10">
-                  <p className="text-[11px] font-bold text-[#128A4E] uppercase tracking-wider">Lifestyle Breakdown</p>
-                  <div className="grid grid-cols-2 gap-y-2 text-xs text-gray-700">
-                    <p>⏰ <strong>Sleep:</strong> {selectedRoommate.sleepSchedule}</p>
-                    <p>✨ <strong>Clean:</strong> {selectedRoommate.cleanliness}</p>
-                    <p>🥦 <strong>Diet:</strong> {selectedRoommate.dietary}</p>
-                    <p>🚭 <strong>Smoke:</strong> {selectedRoommate.smoking}</p>
+              <div className="overflow-y-auto flex-1">
+                {/* Photo backdrop */}
+                <div className="relative h-48 w-full bg-slate-100">
+                  <img 
+                    src={selectedRoommate.photoUrl} 
+                    alt={selectedRoommate.name} 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  <button 
+                    onClick={() => setSelectedRoommate(null)}
+                    className="absolute top-4 right-4 w-9 h-9 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white backdrop-blur-xs cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                  <div className="absolute bottom-4 left-4 bg-[#128A4E] text-white font-bold text-xs px-3 py-1.5 rounded-full flex items-center gap-1 shadow-md">
+                    <Sparkles size={12} />
+                    <span>{getDynamicCompatibility(selectedRoommate)}% Match Score</span>
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-1.5">
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">About</h4>
-                  <p className="text-sm text-gray-600 leading-relaxed font-normal">
-                    {selectedRoommate.bio}
-                  </p>
-                </div>
+                {/* Contents block */}
+                <div className="px-5 py-6 flex flex-col gap-4">
+                  <div className="flex flex-col">
+                    <h3 className="text-xl font-bold text-[#0F172A]">{selectedRoommate.name}</h3>
+                    <p className="text-xs font-medium text-gray-500 mt-1 flex items-center gap-1">
+                      <span>{selectedRoommate.age} years old</span>
+                      <span>•</span>
+                      <span>{selectedRoommate.gender}</span>
+                      <span>•</span>
+                      <span>{selectedRoommate.city}</span>
+                    </p>
+                  </div>
 
-                <div className="flex flex-col gap-1 text-xs text-gray-500 mt-1">
-                  <p className="flex items-center gap-2"><Briefcase size={14} className="text-[#128A4E]" /> {selectedRoommate.occupation}</p>
-                  <p className="flex items-center gap-2 mt-1"><GraduationCap size={14} className="text-[#128A4E]" /> {selectedRoommate.education}</p>
-                </div>
+                  <div className="flex flex-col gap-2.5 bg-[#E8F5EE]/40 rounded-2xl p-4 border border-[#128A4E]/10">
+                    <p className="text-[11px] font-bold text-[#128A4E] uppercase tracking-wider">Lifestyle Breakdown</p>
+                    <div className="grid grid-cols-2 gap-y-2 text-xs text-gray-700">
+                      <p>⏰ <strong>Sleep:</strong> {selectedRoommate.sleepSchedule}</p>
+                      <p>✨ <strong>Clean:</strong> {selectedRoommate.cleanliness}</p>
+                      <p>🥦 <strong>Diet:</strong> {selectedRoommate.dietary}</p>
+                      <p>🚭 <strong>Smoke:</strong> {selectedRoommate.smoking}</p>
+                    </div>
+                  </div>
 
-                <div className="grid grid-cols-1 mt-4">
-                  <PrimaryButton
-                    onClick={() => handleStartChatWithRoommate(selectedRoommate)}
-                    text={`Chat with ${selectedRoommate.name.split(' ')[0]}`}
-                    icon={<MessageSquare size={16} />}
-                  />
+                  <div className="flex flex-col gap-1.5">
+                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">About</h4>
+                    <p className="text-sm text-gray-600 leading-relaxed font-normal">
+                      {selectedRoommate.bio}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-1 text-xs text-gray-500 mt-1">
+                    <p className="flex items-center gap-2"><Briefcase size={14} className="text-[#128A4E]" /> {selectedRoommate.occupation}</p>
+                    <p className="flex items-center gap-2 mt-1"><GraduationCap size={14} className="text-[#128A4E]" /> {selectedRoommate.education}</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 mt-4">
+                    <PrimaryButton
+                      onClick={() => handleStartChatWithRoommate(selectedRoommate)}
+                      text={`Chat with ${selectedRoommate.name.split(' ')[0]}`}
+                      icon={<MessageSquare size={16} />}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -2395,100 +2480,102 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
             onClick={() => setSelectedRoom(null)}
           >
             <div 
-              className="bg-white rounded-3xl w-full max-w-[400px] overflow-hidden shadow-2xl flex flex-col gap-5 border border-gray-100 animate-in zoom-in-95 duration-200"
+              className="bg-white rounded-3xl w-full max-w-[400px] max-h-[85vh] overflow-hidden shadow-2xl flex flex-col border border-gray-100 animate-in zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Photo backdrop */}
-              <div className="relative h-48 w-full bg-slate-100">
-                <img 
-                  src={selectedRoom.images[0]} 
-                  alt={selectedRoom.title} 
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-                <button 
-                  onClick={() => setSelectedRoom(null)}
-                  className="absolute top-4 right-4 w-9 h-9 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white backdrop-blur-xs cursor-pointer"
-                >
-                  <X size={18} />
-                </button>
-                <div className="absolute bottom-4 left-4 bg-black/60 text-white font-bold text-xs px-3 py-1.5 rounded-full uppercase tracking-wider">
-                  {selectedRoom.sharingType}
-                </div>
-                <div className="absolute bottom-4 right-4 bg-white text-[#128A4E] font-extrabold text-sm px-3.5 py-1.5 rounded-xl shadow-md">
-                  ₹{selectedRoom.rent.toLocaleString('en-IN')}/mo
-                </div>
-              </div>
-
-              {/* Contents block */}
-              <div className="px-5 pb-6 flex flex-col gap-4">
-                <div className="flex flex-col gap-1">
-                  <h3 className="text-base font-extrabold text-[#0F172A] leading-tight">{selectedRoom.title}</h3>
-                  <p className="text-xs font-semibold text-gray-500 flex items-center gap-1 mt-1">
-                    <MapPin size={13} className="text-[#128A4E]" />
-                    <span>{selectedRoom.location}</span>
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Amenities Include</h4>
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {selectedRoom.amenities.map((amenity) => (
-                      <span key={amenity} className="text-[10px] bg-[#E8F5EE] text-[#128A4E] px-2.5 py-1 rounded-full font-bold">
-                        ✓ {amenity}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Property Description</h4>
-                  <p className="text-xs text-gray-600 leading-relaxed font-normal">
-                    {selectedRoom.description}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3 border-t border-gray-100 pt-4 mt-1">
+              <div className="overflow-y-auto flex-1">
+                {/* Photo backdrop */}
+                <div className="relative h-48 w-full bg-slate-100">
                   <img 
-                    src={selectedRoom.postedBy.photoUrl} 
-                    alt={selectedRoom.postedBy.name} 
-                    className="w-10 h-10 rounded-full object-cover border border-gray-100"
+                    src={selectedRoom.images[0]} 
+                    alt={selectedRoom.title} 
+                    className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
                   />
-                  <div className="flex-1">
-                    <p className="text-xs font-bold text-[#0F172A]">{selectedRoom.postedBy.name}</p>
-                    <p className="text-[10px] text-gray-400">Verified Landlord/Flatmate</p>
+                  <button 
+                    onClick={() => setSelectedRoom(null)}
+                    className="absolute top-4 right-4 w-9 h-9 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white backdrop-blur-xs cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                  <div className="absolute bottom-4 left-4 bg-black/60 text-white font-bold text-xs px-3 py-1.5 rounded-full uppercase tracking-wider">
+                    {selectedRoom.sharingType}
+                  </div>
+                  <div className="absolute bottom-4 right-4 bg-white text-[#128A4E] font-extrabold text-sm px-3.5 py-1.5 rounded-xl shadow-md">
+                    ₹{selectedRoom.rent.toLocaleString('en-IN')}/mo
                   </div>
                 </div>
 
-                {selectedRoom.postedBy.name !== userProfile.fullName && (
-                  <div className="grid grid-cols-1 mt-2">
-                    <PrimaryButton
-                      onClick={() => {
-                        const dummyRoommate: RoommateCard = {
-                          id: `rm-${Date.now()}`,
-                          name: selectedRoom.postedBy.name,
-                          age: 24,
-                          gender: 'Male',
-                          occupation: 'Relok Listed Host',
-                          education: 'University',
-                          bio: 'Host of listed properties on Relok.',
-                          matchPercentage: 95,
-                          photoUrl: selectedRoom.postedBy.photoUrl,
-                          city: selectedRoom.city,
-                          budget: `₹${selectedRoom.rent}`,
-                          sleepSchedule: 'Early Bird',
-                          cleanliness: 'Spick & Span',
-                          dietary: 'Any',
-                          smoking: 'No Smoking'
-                        };
-                        handleStartChatWithRoommate(dummyRoommate);
-                      }}
-                      text="Contact Lister"
-                      icon={<MessageSquare size={16} />}
-                    />
+                {/* Contents block */}
+                <div className="px-5 py-6 flex flex-col gap-4">
+                  <div className="flex flex-col gap-1">
+                    <h3 className="text-base font-extrabold text-[#0F172A] leading-tight">{selectedRoom.title}</h3>
+                    <p className="text-xs font-semibold text-gray-500 flex items-center gap-1 mt-1">
+                      <MapPin size={13} className="text-[#128A4E]" />
+                      <span>{selectedRoom.location}</span>
+                    </p>
                   </div>
-                )}
+
+                  <div className="flex flex-col gap-1.5">
+                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Amenities Include</h4>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {selectedRoom.amenities.map((amenity) => (
+                        <span key={amenity} className="text-[10px] bg-[#E8F5EE] text-[#128A4E] px-2.5 py-1 rounded-full font-bold">
+                          ✓ {amenity}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Property Description</h4>
+                    <p className="text-xs text-gray-600 leading-relaxed font-normal">
+                      {selectedRoom.description}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3 border-t border-gray-100 pt-4 mt-1">
+                    <img 
+                      src={selectedRoom.postedBy.photoUrl} 
+                      alt={selectedRoom.postedBy.name} 
+                      className="w-10 h-10 rounded-full object-cover border border-gray-100"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-[#0F172A]">{selectedRoom.postedBy.name}</p>
+                      <p className="text-[10px] text-gray-400">Verified Landlord/Flatmate</p>
+                    </div>
+                  </div>
+
+                  {selectedRoom.postedBy.name !== userProfile.fullName && (
+                    <div className="grid grid-cols-1 mt-2">
+                      <PrimaryButton
+                        onClick={() => {
+                          const dummyRoommate: RoommateCard = {
+                            id: `rm-${Date.now()}`,
+                            name: selectedRoom.postedBy.name,
+                            age: 24,
+                            gender: 'Male',
+                            occupation: 'Relok Listed Host',
+                            education: 'University',
+                            bio: 'Host of listed properties on Relok.',
+                            matchPercentage: 95,
+                            photoUrl: selectedRoom.postedBy.photoUrl,
+                            city: selectedRoom.city,
+                            budget: `₹${selectedRoom.rent}`,
+                            sleepSchedule: 'Early Bird',
+                            cleanliness: 'Spick & Span',
+                            dietary: 'Any',
+                            smoking: 'No Smoking'
+                          };
+                          handleStartChatWithRoommate(dummyRoommate);
+                        }}
+                        text="Contact Lister"
+                        icon={<MessageSquare size={16} />}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

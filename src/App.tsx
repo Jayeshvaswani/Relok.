@@ -13,13 +13,48 @@ import { PRESET_ROOMMATES, PRESET_ROOMS, PRESET_CHATS } from './data';
 import { OnboardingFlow } from './components/OnboardingFlow';
 import { MainAppLayout } from './components/MainAppLayout';
 import { PrimaryButton, BackButton } from './components/Common';
+import { IntentSelectionGateway } from './components/IntentSelectionGateway';
+import { BrokerOnboarding } from './components/BrokerOnboarding';
 
 export default function App() {
   // Simulator State Controls
-  const [currentScreen, setCurrentScreen] = useState<'splash' | 'welcome' | 'phone' | 'otp' | 'onboarding' | 'dashboard'>('splash');
+  const [currentScreen, setCurrentScreen] = useState<'splash' | 'welcome' | 'phone' | 'otp' | 'onboarding' | 'intent-gateway' | 'broker-onboarding' | 'dashboard'>('splash');
   const [currentOnboardingStep, setCurrentOnboardingStep] = useState<number>(1);
-  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(false);
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(() => {
+    return localStorage.getItem('hasCompletedOnboarding') === 'true' || localStorage.getItem('skipped_onboarding') === 'true';
+  });
   const [isLoginFlow, setIsLoginFlow] = useState<boolean>(false);
+
+  // NEW INTENT / BROKER STATES:
+  const [hasSelectedIntent, setHasSelectedIntent] = useState<boolean>(() => {
+    return localStorage.getItem('hasSelectedIntent') === 'true';
+  });
+  const [userIntent, setUserIntent] = useState<'roommate' | 'private_room' | 'shared_room' | 'post_room' | 'broker' | 'none'>(() => {
+    return (localStorage.getItem('userIntent') as any) || 'none';
+  });
+  const [isBroker, setIsBroker] = useState<boolean>(() => {
+    return localStorage.getItem('isBroker') === 'true';
+  });
+  const [brokerVerificationStatus, setBrokerVerificationStatus] = useState<'pending' | 'under_review' | 'verified'>(() => {
+    return (localStorage.getItem('brokerVerificationStatus') as any) || 'pending';
+  });
+  const [agencyName, setAgencyName] = useState<string>(() => {
+    return localStorage.getItem('agencyName') || '';
+  });
+  const [brokerDetails, setBrokerDetails] = useState<{
+    agencyName: string;
+    brokerType: 'Individual Agent' | 'Agency';
+    experience: string;
+    areas: string[];
+    reraNumber: string;
+  } | null>(() => {
+    const saved = localStorage.getItem('brokerDetails');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const [initialActiveTab, setInitialActiveTab] = useState<'home' | 'matches' | 'post' | 'chats' | 'profile'>('home');
+  const [initialHomeFilter, setInitialHomeFilter] = useState<'all' | 'rooms' | 'roommates' | 'my'>('all');
+  const [initialSharingTypeFilter, setInitialSharingTypeFilter] = useState<'Private Room' | 'Shared Room' | ''>('');
 
   // Authentication Fields
   const [phoneNumber, setPhoneNumber] = useState<string>('');
@@ -133,17 +168,17 @@ export default function App() {
     e.preventDefault();
     if (otpDigits.join('').length < 6) return;
 
-    // CRITICAL ROUTING LOGIC:
-    // Check if the user has completed onboarding previously or logged in via "Already have an account"
-    if (isLoginFlow || hasCompletedOnboarding) {
-      // Returning user -> skip onboarding entirely, route straight to Home Dashboard
-      setHasCompletedOnboarding(true);
-      setCurrentScreen('dashboard');
-    } else {
-      // New user -> ALWAYS route to Onboarding Step 1 (Lifestyle & Preferences)
-      setCurrentOnboardingStep(1);
-      setCurrentScreen('onboarding');
-    }
+    // Always clear selected intent and reset onboarding completion on login/signup 
+    // so they see the full onboarding flow first, and then the intent gateway fresh
+    setHasSelectedIntent(false);
+    localStorage.removeItem('hasSelectedIntent');
+    setHasCompletedOnboarding(false);
+    localStorage.removeItem('hasCompletedOnboarding');
+    localStorage.removeItem('skipped_onboarding');
+
+    // Route to Onboarding Step 1 (Lifestyle & Preferences)
+    setCurrentOnboardingStep(1);
+    setCurrentScreen('onboarding');
   };
 
   const handleSkipOnboarding = () => {
@@ -197,11 +232,82 @@ export default function App() {
 
     localStorage.setItem('skipped_onboarding', 'true');
     setHasCompletedOnboarding(true);
-    setCurrentScreen('dashboard');
+    localStorage.setItem('hasCompletedOnboarding', 'true');
+    
+    // Always show the intent selection gateway after skipping onboarding as per user request
+    setCurrentScreen('intent-gateway');
   };
 
   const handleCompleteOnboarding = () => {
     setHasCompletedOnboarding(true);
+    localStorage.setItem('hasCompletedOnboarding', 'true');
+    
+    // Always show the intent selection gateway after completing onboarding as per user request
+    setCurrentScreen('intent-gateway');
+  };
+
+  const handleSelectIntent = (intent: 'roommate' | 'private_room' | 'shared_room' | 'post_room' | 'broker') => {
+    setHasSelectedIntent(true);
+    localStorage.setItem('hasSelectedIntent', 'true');
+    setUserIntent(intent);
+    localStorage.setItem('userIntent', intent);
+
+    if (intent === 'roommate') {
+      // Direct redirect: if a user wants a partner, they see the Matches tab directly
+      setInitialActiveTab('matches');
+      setInitialHomeFilter('roommates');
+      setInitialSharingTypeFilter('');
+      setCurrentScreen('dashboard');
+    } else if (intent === 'private_room') {
+      setInitialActiveTab('home');
+      setInitialHomeFilter('rooms');
+      setInitialSharingTypeFilter('Private Room');
+      setCurrentScreen('dashboard');
+    } else if (intent === 'shared_room') {
+      setInitialActiveTab('home');
+      setInitialHomeFilter('rooms');
+      setInitialSharingTypeFilter('Shared Room');
+      setCurrentScreen('dashboard');
+    } else if (intent === 'post_room') {
+      // Direct redirect: if a person wants to post, they see the Post tab directly
+      setInitialActiveTab('post');
+      setInitialHomeFilter('all');
+      setInitialSharingTypeFilter('');
+      setCurrentScreen('dashboard');
+    } else if (intent === 'broker') {
+      setCurrentScreen('broker-onboarding');
+    }
+  };
+
+  const handleSkipIntentGateway = () => {
+    setHasSelectedIntent(true);
+    localStorage.setItem('hasSelectedIntent', 'true');
+    setUserIntent('none');
+    localStorage.setItem('userIntent', 'none');
+    setInitialActiveTab('home');
+    setInitialHomeFilter('all');
+    setInitialSharingTypeFilter('');
+    setCurrentScreen('dashboard');
+  };
+
+  const handleCompleteBrokerOnboarding = (data: {
+    agencyName: string;
+    brokerType: 'Individual Agent' | 'Agency';
+    experience: string;
+    areas: string[];
+    reraNumber: string;
+  }) => {
+    setIsBroker(true);
+    localStorage.setItem('isBroker', 'true');
+    setBrokerVerificationStatus('under_review');
+    localStorage.setItem('brokerVerificationStatus', 'under_review');
+    setAgencyName(data.agencyName);
+    localStorage.setItem('agencyName', data.agencyName);
+    setBrokerDetails(data);
+    localStorage.setItem('brokerDetails', JSON.stringify(data));
+    
+    // land on Profile/Agent tab directly to show their Broker Dashboard
+    setInitialActiveTab('profile');
     setCurrentScreen('dashboard');
   };
 
@@ -212,17 +318,26 @@ export default function App() {
     setCanResendOtp(false);
     setHasCompletedOnboarding(false);
     setIsLoginFlow(false);
+    setHasSelectedIntent(false);
+    setUserIntent('none');
+    setIsBroker(false);
+    setBrokerVerificationStatus('pending');
+    setAgencyName('');
+    setBrokerDetails(null);
+    localStorage.clear();
     setCurrentScreen('splash');
   };
 
+  const isFullScreenFrame = currentScreen === 'broker-onboarding' || (isBroker && currentScreen === 'dashboard');
+
   return (
-    <div className="min-h-screen bg-slate-900 flex justify-center items-center font-sans selection:bg-[#128A4E]/30 antialiased">
+    <div className={`min-h-screen ${isFullScreenFrame ? 'bg-slate-50' : 'bg-slate-900 flex justify-center items-center'} font-sans selection:bg-[#128A4E]/30 antialiased`}>
       
-      {/* Mobile containment frame - centered on desktop, full bleed on mobile */}
-      <div className="w-full max-w-[430px] min-h-screen bg-white text-[#0F172A] shadow-2xl relative overflow-x-hidden flex flex-col justify-between sm:min-h-[850px] sm:rounded-3xl sm:my-4 sm:border sm:border-slate-800">
+      {/* Mobile containment frame - centered on desktop, full bleed on mobile, unless full-screen broker view is active */}
+      <div className={`w-full ${isFullScreenFrame ? 'max-w-none bg-slate-50' : 'max-w-[430px] bg-white shadow-2xl sm:min-h-[850px] sm:rounded-3xl sm:my-4 sm:border sm:border-slate-800'} min-h-screen text-[#0F172A] relative overflow-x-hidden flex flex-col justify-between`}>
         
         {/* SCREENS ROUTER CONTAINER */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col justify-between">
+        <div className={`flex-1 overflow-y-auto ${isFullScreenFrame ? 'px-4 py-6 md:px-12 md:py-8 max-w-7xl mx-auto w-full' : 'px-6 py-4'} flex flex-col justify-between`}>
           
           {/* SCREEN 1: Splash Screen */}
           {currentScreen === 'splash' && (
@@ -286,6 +401,8 @@ export default function App() {
                   <PrimaryButton
                     onClick={() => {
                       setIsLoginFlow(false);
+                      setHasSelectedIntent(false);
+                      localStorage.removeItem('hasSelectedIntent');
                       setCurrentScreen('phone');
                     }}
                     text="Get Started"
@@ -299,6 +416,8 @@ export default function App() {
                   <button
                     onClick={() => {
                       setIsLoginFlow(true);
+                      setHasSelectedIntent(false);
+                      localStorage.removeItem('hasSelectedIntent');
                       setCurrentScreen('phone');
                     }}
                     className="text-[15px] font-semibold text-[#128A4E] hover:text-[#0F7A44] underline transition-colors cursor-pointer"
@@ -485,6 +604,22 @@ export default function App() {
             />
           )}
 
+          {/* INTENT SELECTION GATEWAY */}
+          {currentScreen === 'intent-gateway' && (
+            <IntentSelectionGateway
+              onSelect={handleSelectIntent}
+              onSkip={handleSkipIntentGateway}
+            />
+          )}
+
+          {/* BROKER ONBOARDING FLOW */}
+          {currentScreen === 'broker-onboarding' && (
+            <BrokerOnboarding
+              onBack={() => setCurrentScreen('intent-gateway')}
+              onComplete={handleCompleteBrokerOnboarding}
+            />
+          )}
+
           {/* SCREEN 6: Main Dashboard Marketplace Layout */}
           {currentScreen === 'dashboard' && (
             <MainAppLayout
@@ -506,6 +641,17 @@ export default function App() {
               onResetAll={handleResetAllState}
               hasCompletedOnboarding={hasCompletedOnboarding}
               setHasCompletedOnboarding={setHasCompletedOnboarding}
+              // NEW INTENT / BROKER PROPS:
+              initialActiveTab={initialActiveTab}
+              initialHomeFilter={initialHomeFilter}
+              initialSharingTypeFilter={initialSharingTypeFilter}
+              isBroker={isBroker}
+              setIsBroker={setIsBroker}
+              brokerVerificationStatus={brokerVerificationStatus}
+              setBrokerVerificationStatus={setBrokerVerificationStatus}
+              agencyName={agencyName}
+              setAgencyName={setAgencyName}
+              brokerDetails={brokerDetails}
             />
           )}
 
