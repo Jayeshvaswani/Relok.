@@ -429,16 +429,62 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
 
   const myRooms = roomListings.filter(room => room.postedBy.name === userProfile.fullName);
 
+  // Helper functions for auto-generating title & description fallbacks
+  const getPropertyTypeLabel = (type: string) => {
+    switch (type) {
+      case '1BHK': return '1 BHK Flat';
+      case '2BHK': return '2 BHK Flat';
+      case 'Shared Room': return 'Shared Room';
+      case 'Room': return 'Single Room';
+      default: return type;
+    }
+  };
+
+  const getLocality = () => {
+    if (!address || !address.trim()) {
+      return selectedCity || 'Locality';
+    }
+    const parts = address.split(',').map(p => p.trim()).filter(Boolean);
+    if (parts.length > 1 && (parts[parts.length - 1].toLowerCase().includes('bengaluru') || parts[parts.length - 1].toLowerCase().includes('bangalore') || parts[parts.length - 1].toLowerCase().includes('mumbai') || parts[parts.length - 1].toLowerCase().includes('delhi') || parts[parts.length - 1].toLowerCase().includes('hyderabad') || parts[parts.length - 1].toLowerCase().includes('pune'))) {
+      parts.pop();
+    }
+    return parts.join(', ') || address.trim();
+  };
+
+  const getEffectiveListingTitle = () => {
+    if (listingTitle && listingTitle.trim() !== '') {
+      return listingTitle.trim();
+    }
+    const propType = getPropertyTypeLabel(listingType);
+    const locality = getLocality();
+    return `${propType} in ${locality}`;
+  };
+
+  const getEffectiveDescription = () => {
+    if (description && description.trim() !== '') {
+      return description.trim();
+    }
+    const propType = getPropertyTypeLabel(listingType);
+    const availDate = availableFrom && availableFrom.trim() ? availableFrom.trim() : 'Immediate';
+    const amenitiesList = newRoomAmenities.length > 0 
+      ? newRoomAmenities.join(', ') 
+      : 'Wi-Fi, Kitchen, AC';
+    return `Furnished ${propType} available from ${availDate}. Amenities: ${amenitiesList}.`;
+  };
+
   // Posting room handler
   const handlePostRoom = () => {
-    if (!listingTitle || !monthlyRent || !description || !address) {
+    if (!monthlyRent || !securityDeposit || !availableFrom || !stayDuration || !address) {
       showToast('Please fill out all required fields.');
       return;
     }
 
+    const finalTitle = getEffectiveListingTitle();
+    const finalDescription = getEffectiveDescription();
+
     const newRoom: RoomListing = {
       id: `room-${Date.now()}`,
-      title: listingTitle,
+      title: finalTitle,
       rent: Number(monthlyRent),
       location: `${address}${landmark ? ', ' + landmark : ''}, ${selectedCity}`,
       city: selectedCity,
@@ -449,7 +495,7 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
         name: userProfile.fullName || 'Anonymous User',
         photoUrl: userProfile.photoUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200&h=200'
       },
-      description: description
+      description: finalDescription
     };
 
     setRoomListings([newRoom, ...roomListings]);
@@ -1371,7 +1417,7 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                   <PrimaryButton
                     onClick={() => setCreateStep(2)}
                     text="Continue →"
-                    disabled={!listingTitle || !monthlyRent || !description}
+                    disabled={!monthlyRent || !securityDeposit || !availableFrom || !stayDuration}
                   />
                 </div>
               </div>
@@ -1772,7 +1818,7 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                   <div className="p-3 flex flex-col gap-1 relative">
                     <button onClick={() => setCreateStep(1)} className="absolute top-2 right-3 text-[#128A4E] font-bold text-[10px] hover:underline cursor-pointer">Edit</button>
                     <span className="text-[9px] text-[#128A4E] font-black uppercase tracking-wider">{listingType}</span>
-                    <p className="font-extrabold text-gray-950 text-sm">{listingTitle || 'Cozy Room in HSR Layout'}</p>
+                    <p className="font-extrabold text-gray-950 text-sm">{getEffectiveListingTitle()}</p>
                     <p className="text-[10px] text-gray-400 font-semibold">⏰ Available: {availableFrom || 'Immediate'} • Stay: {stayDuration}</p>
                   </div>
 
@@ -1798,7 +1844,7 @@ export const MainAppLayout: React.FC<MainAppLayoutProps> = ({
                   <div className="p-3 flex flex-col gap-1 relative">
                     <button onClick={() => setCreateStep(1)} className="absolute top-2 right-3 text-[#128A4E] font-bold text-[10px] hover:underline cursor-pointer">Edit</button>
                     <p className="font-bold text-gray-400 text-[10px] uppercase tracking-wider">Property Description</p>
-                    <p className="text-[11px] text-gray-500 font-medium leading-relaxed italic">"{description || 'No description provided.'}"</p>
+                    <p className="text-[11px] text-gray-500 font-medium leading-relaxed italic">"{getEffectiveDescription()}"</p>
                   </div>
                 </div>
 

@@ -23,7 +23,8 @@ export const BrokerOnboarding: React.FC<BrokerOnboardingProps> = ({ onBack, onCo
   const [areas, setAreas] = useState<string[]>([]);
   const [reraNumber, setReraNumber] = useState('');
 
-  // Upload States (simulated files)
+  // Upload & Verification States
+  const [aadhaarNumber, setAadhaarNumber] = useState('');
   const [govIdUploaded, setGovIdUploaded] = useState<string | null>(null);
   const [businessRegUploaded, setBusinessRegUploaded] = useState<string | null>(null);
 
@@ -45,21 +46,22 @@ export const BrokerOnboarding: React.FC<BrokerOnboardingProps> = ({ onBack, onCo
     }
   };
 
+  const isAadhaarProvided = !!(aadhaarNumber.trim() || govIdUploaded);
+
   const handleDetailsSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!agencyName || !experience || areas.length === 0) return;
     setStep(2);
   };
 
   const handleVerifySubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!govIdUploaded || !businessRegUploaded) return;
+    if (!isAadhaarProvided) return;
     onComplete({
-      agencyName,
+      agencyName: agencyName.trim() || 'Independent Agent',
       brokerType,
-      experience,
-      areas,
-      reraNumber
+      experience: experience.trim() || '1+',
+      areas: areas.length > 0 ? areas : ['Bengaluru'],
+      reraNumber: reraNumber.trim() || ''
     });
   };
 
@@ -86,7 +88,7 @@ export const BrokerOnboarding: React.FC<BrokerOnboardingProps> = ({ onBack, onCo
 
             <div className="flex flex-col gap-4 mt-2">
               <FormInput
-                label="Agency or Business Name"
+                label="Agency or Business Name (Optional)"
                 placeholder="e.g. Dream Realty Services"
                 value={agencyName}
                 onChange={setAgencyName}
@@ -94,7 +96,7 @@ export const BrokerOnboarding: React.FC<BrokerOnboardingProps> = ({ onBack, onCo
 
               {/* Broker Type Pill Toggle */}
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-semibold text-[#0F172A]">Broker Type</label>
+                <label className="text-sm font-semibold text-[#0F172A]">Broker Type (Optional)</label>
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     { id: 'Individual Agent' as const, label: 'Individual Agent', icon: <Briefcase size={16} /> },
@@ -121,7 +123,7 @@ export const BrokerOnboarding: React.FC<BrokerOnboardingProps> = ({ onBack, onCo
               </div>
 
               <FormInput
-                label="Years of Experience"
+                label="Years of Experience (Optional)"
                 placeholder="e.g. 5"
                 type="number"
                 value={experience}
@@ -130,7 +132,7 @@ export const BrokerOnboarding: React.FC<BrokerOnboardingProps> = ({ onBack, onCo
 
               {/* Areas of Operation (Multi-select) */}
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Areas of Operation</label>
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Areas of Operation (Optional)</label>
                 <div className="flex flex-wrap gap-2 mt-1">
                   {CITIES.map((city) => {
                     const isSelected = areas.includes(city);
@@ -164,8 +166,7 @@ export const BrokerOnboarding: React.FC<BrokerOnboardingProps> = ({ onBack, onCo
           <div className="mt-8">
             <PrimaryButton
               type="submit"
-              text="Continue"
-              disabled={!agencyName || !experience || areas.length === 0}
+              text="Continue →"
             />
           </div>
         </form>
@@ -191,20 +192,32 @@ export const BrokerOnboarding: React.FC<BrokerOnboardingProps> = ({ onBack, onCo
 
             <div className="flex flex-col gap-4 mt-2">
               
-              {/* Box 1: Government ID Upload */}
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-semibold text-[#0F172A]">Government Issued Photo ID</label>
-                <p className="text-xs text-gray-400 font-medium">Aadhaar Card, PAN Card, or Passport (PDF/JPG)</p>
+              {/* Box 1: Aadhaar Card (Mandatory) */}
+              <div className="flex flex-col gap-3.5 bg-emerald-50/40 p-4 rounded-2xl border border-emerald-100/80">
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-extrabold text-[#0F172A]">Aadhaar Card</label>
+                    <span className="text-[10px] font-black uppercase text-[#128A4E] bg-[#E8F5EE] px-2 py-0.5 rounded-md border border-[#128A4E]/20">Required</span>
+                  </div>
+                  <p className="text-xs text-gray-500 font-medium">Provide your 12-digit Aadhaar Card Number or upload document copy</p>
+                </div>
+
+                <FormInput
+                  label="Aadhaar Card Number"
+                  placeholder="e.g. 1234 5678 9012"
+                  value={aadhaarNumber}
+                  onChange={setAadhaarNumber}
+                />
                 
                 {govIdUploaded ? (
-                  <div className="w-full h-24 bg-[#E8F5EE] border border-[#128A4E]/30 rounded-2xl flex items-center justify-between px-5 animate-in zoom-in-95 duration-200">
+                  <div className="w-full h-20 bg-[#E8F5EE] border border-[#128A4E]/30 rounded-2xl flex items-center justify-between px-5 animate-in zoom-in-95 duration-200">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-[#128A4E]/10 rounded-xl flex items-center justify-center">
                         <FileText className="w-5 h-5 text-[#128A4E]" />
                       </div>
                       <div className="flex flex-col">
                         <span className="text-xs font-bold text-[#0F172A]">{govIdUploaded}</span>
-                        <span className="text-[10px] text-gray-500 font-semibold">File uploaded successfully</span>
+                        <span className="text-[10px] text-gray-500 font-semibold">Aadhaar Card uploaded</span>
                       </div>
                     </div>
                     <button
@@ -218,23 +231,26 @@ export const BrokerOnboarding: React.FC<BrokerOnboardingProps> = ({ onBack, onCo
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setGovIdUploaded('Gov_ID_Proof.pdf')}
-                    className="w-full h-32 bg-slate-50 border-2 border-dashed border-gray-200 hover:border-[#128A4E] rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors group"
+                    onClick={() => setGovIdUploaded('Aadhaar_Card_Proof.pdf')}
+                    className="w-full h-24 bg-white border-2 border-dashed border-gray-200 hover:border-[#128A4E] rounded-2xl flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors group"
                   >
-                    <Upload className="w-6 h-6 text-gray-400 group-hover:text-[#128A4E] transition-colors" />
-                    <span className="text-xs font-extrabold text-gray-500 group-hover:text-[#128A4E] transition-colors">Tap to select or upload ID</span>
-                    <span className="text-[10px] text-gray-400">Max size 10MB</span>
+                    <Upload className="w-5 h-5 text-gray-400 group-hover:text-[#128A4E] transition-colors" />
+                    <span className="text-xs font-extrabold text-gray-500 group-hover:text-[#128A4E] transition-colors">Upload Aadhaar Card Copy</span>
+                    <span className="text-[10px] text-gray-400">PDF / JPG max 10MB</span>
                   </button>
                 )}
               </div>
 
-              {/* Box 2: Trade License/Business Reg Upload */}
-              <div className="flex flex-col gap-2 mt-2">
-                <label className="text-sm font-semibold text-[#0F172A]">Business registration / Trade License</label>
+              {/* Box 2: Trade License/Business Reg Upload (Optional) */}
+              <div className="flex flex-col gap-2 mt-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-[#0F172A]">Business Registration / Trade License</label>
+                  <span className="text-[10px] font-bold uppercase text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md">Optional</span>
+                </div>
                 <p className="text-xs text-gray-400 font-medium">GST, Trade Certificate, or Incorporation Document (PDF/JPG)</p>
 
                 {businessRegUploaded ? (
-                  <div className="w-full h-24 bg-[#E8F5EE] border border-[#128A4E]/30 rounded-2xl flex items-center justify-between px-5 animate-in zoom-in-95 duration-200">
+                  <div className="w-full h-20 bg-[#E8F5EE] border border-[#128A4E]/30 rounded-2xl flex items-center justify-between px-5 animate-in zoom-in-95 duration-200">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-[#128A4E]/10 rounded-xl flex items-center justify-center">
                         <FileText className="w-5 h-5 text-[#128A4E]" />
@@ -256,9 +272,9 @@ export const BrokerOnboarding: React.FC<BrokerOnboardingProps> = ({ onBack, onCo
                   <button
                     type="button"
                     onClick={() => setBusinessRegUploaded('Incorporation_Proof.pdf')}
-                    className="w-full h-32 bg-slate-50 border-2 border-dashed border-gray-200 hover:border-[#128A4E] rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors group"
+                    className="w-full h-24 bg-slate-50 border-2 border-dashed border-gray-200 hover:border-[#128A4E] rounded-2xl flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors group"
                   >
-                    <Upload className="w-6 h-6 text-gray-400 group-hover:text-[#128A4E] transition-colors" />
+                    <Upload className="w-5 h-5 text-gray-400 group-hover:text-[#128A4E] transition-colors" />
                     <span className="text-xs font-extrabold text-gray-500 group-hover:text-[#128A4E] transition-colors">Tap to select or upload proof</span>
                     <span className="text-[10px] text-gray-400">Max size 10MB</span>
                   </button>
@@ -282,7 +298,7 @@ export const BrokerOnboarding: React.FC<BrokerOnboardingProps> = ({ onBack, onCo
             <PrimaryButton
               type="submit"
               text="Submit & Open Dashboard"
-              disabled={!govIdUploaded || !businessRegUploaded}
+              disabled={!isAadhaarProvided}
             />
           </div>
         </form>

@@ -83,7 +83,7 @@ export const IntentSelectionGateway: React.FC<IntentSelectionGatewayProps> = ({ 
           onClick={onSkip}
           className="text-xs font-bold text-gray-400 hover:text-gray-600 active:text-gray-800 transition-colors cursor-pointer"
         >
-          Skip, just show me Home
+          Skip, just take me to home page
         </button>
       </div>
     </div>
